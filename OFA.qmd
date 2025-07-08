@@ -3,8 +3,14 @@ title: "Order Flow Analysis"
 author: "N.Naidoo, D. Chetty"
 format: pdf
 ---
+## Required libraries
 ```{r}
 library(dplyr)
+library(lubridate)
+library(ggplot2) #plots
+library(zoo) #Resampling if needed
+library(tseries) #ADF + KPSS tests
+library(tidyr)
 ```
 
 
@@ -14,8 +20,9 @@ quote_data_all<-read.csv("XBTUSD_quotes_20171001_20171023.csv",header = TRUE)
 trade_data_all<-read.csv("XBTUSD_trades_20171001_20171023.csv",header = TRUE)
 ```
 
-## Subset data
+## Formatting data 
 ```{r}
+## so it looks like research paper 
 quote_data_all<-quote_data_all |> select(timestamp,bidPrice,bidSize,askPrice,askSize) 
 quote_data_all<-quote_data_all |> rename(bidVolume=bidSize,askVolume=askSize)
 trade_data_all<-trade_data_all |> select(timestamp,price,size,side)
@@ -23,5 +30,150 @@ trade_data_all<-trade_data_all |> rename(Volume=size)
 ```
 
  The intervals that are used for calculation of TFI and contemporaneous price 
-change are the same as the intervals used in OFI modelling: 1 s, 10 s, 5 min, 10 min 
-and 1 h
+change are the same as the intervals used in OFI modelling: 1 s, 10 s, 5 min, 10 min and 1 h.
+
+
+```{r}
+#Calculating mid price
+quote_data_all <- quote_data_all |> 
+  mutate(
+    timestamp = ymd_hms(timestamp),
+    mid_price = (bidPrice + askPrice) / 2
+  )
+
+```
+
+```{r}
+#Calculate OFI (One value per quote update)
+quote_data_all <- quote_data_all |> 
+  arrange(timestamp) |> 
+  mutate(
+    prev_bidPrice = lag(bidPrice),
+    prev_bidVolume = lag(bidVolume),
+    prev_askPrice = lag(askPrice),
+    prev_askVolume = lag(askVolume),
+    OFI = case_when(
+      bidPrice >= prev_bidPrice ~ bidVolume,
+      bidPrice < prev_bidPrice ~ -prev_bidVolume,
+      TRUE ~ 0
+    ) +
+    case_when(
+      askPrice >= prev_askPrice ~ prev_askVolume,
+      askPrice < prev_askPrice ~ -askVolume,
+      TRUE ~ 0
+    )
+  )
+
+```
+
+
+```{r}
+#Format trade data for tfi
+trade_data_all <- trade_data_all  |> 
+  mutate(
+    timestamp = ymd_hms(timestamp),
+    signed_volume = if_else(side == "Buy", Volume, -Volume) 
+  )
+
+```
+
+```{r}
+# Function to Aggregate to Intervals
+# 
+# 
+# Resample quotes to get mid-price change and OFI per interval
+# 
+# Resample trades to get TFI per interval
+
+aggregate_ofi <- function(df, interval = "10 secs", tick_size = 0.1) {
+  df |>
+    mutate(interval_time = floor_date(timestamp, unit = interval)) |>
+    group_by(interval_time) |>
+    summarise(
+      mid_price_start = first(mid_price),
+      mid_price_end = last(mid_price),
+      OFI = sum(OFI, na.rm = TRUE)
+    ) |>
+    mutate(mid_price_change = (mid_price_end - lag(mid_price_end)) / tick_size) |>
+    drop_na()
+}
+
+aggregate_tfi <- function(trades, quotes, interval = "10 secs", tick_size = 0.1) {
+  tfi <- trades |>
+    mutate(interval_time = floor_date(timestamp, unit = interval)) |>
+    group_by(interval_time) |>
+    summarise(TFI = sum(signed_volume, na.rm = TRUE))
+
+  mid <- quotes |>
+    mutate(interval_time = floor_date(timestamp, unit = interval)) |>
+    group_by(interval_time) |>
+    summarise(mid_price = last(mid_price)) |>
+    mutate(mid_price_change = (mid_price - lag(mid_price)) / tick_size)
+
+  inner_join(mid, tfi, by = "interval_time") |> drop_na()
+}
+
+```
+
+
+```{r}
+# function to run lm an extraxt relevant stats
+run_ols <- function(df, xvar, yvar) {
+  formula <- as.formula(paste(yvar, "~", xvar))
+  model <- lm(formula, data = df)
+  s <- summary(model)
+  c(
+    alpha = s$coefficients[1, 1],
+    beta = s$coefficients[2, 1],
+    t_beta = s$coefficients[2, 3],
+    r2 = s$r.squared,
+    sig = (1 - s$coefficients[2, 4]) * 100
+  )
+}
+```
+
+
+```{r}
+#loop over the different time aggregations
+intervals <- c("1 sec", "10 secs", "1 min", "5 mins", "10 mins", "1 hour")
+results <- data.frame()
+
+for (intv in intervals) {
+  ofi_data <- aggregate_ofi(quote_data_all, interval = intv)
+  tfi_data <- aggregate_tfi(trade_data_all, quote_data_all, interval = intv)
+
+  ofi_stats <- run_ols(ofi_data, "OFI", "mid_price_change")
+  tfi_stats <- run_ols(tfi_data, "TFI", "mid_price_change")
+
+  results <- rbind(results, data.frame(
+    interval = intv,
+    alpha_OFI = ofi_stats["alpha"],
+    beta_OFI = ofi_stats["beta"],
+    t_beta_OFI = ofi_stats["t_beta"],
+    r2_OFI = ofi_stats["r2"],
+    sig_OFI = ofi_stats["sig"],
+    alpha_TFI = tfi_stats["alpha"],
+    beta_TFI = tfi_stats["beta"],
+    t_beta_TFI = tfi_stats["t_beta"],
+    r2_TFI = tfi_stats["r2"],
+    sig_TFI = tfi_stats["sig"]
+  ))
+}
+
+```
+
+```{r}
+print(results)
+#write.csv(results, "table3_replication.csv", row.names = FALSE)
+```
+
+```{r}
+#Stationarity test
+adf.test(ofi_data$OFI)
+kpss.test(ofi_data$OFI, null = "Level")
+
+adf.test(tfi_data$TFI)
+kpss.test(tfi_data$TFI, null = "Level")
+
+```
+
