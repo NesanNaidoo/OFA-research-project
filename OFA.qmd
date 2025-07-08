@@ -3,4 +3,25 @@ title: "Order Flow Analysis"
 author: "N.Naidoo, D. Chetty"
 format: pdf
 ---
+```{r}
+library(dplyr)
+```
 
+
+## Reading in data
+```{r}
+quote_data_all<-read.csv("XBTUSD_quotes_20171001_20171023.csv",header = TRUE)
+trade_data_all<-read.csv("XBTUSD_trades_20171001_20171023.csv",header = TRUE)
+```
+
+## Subset data
+```{r}
+quote_data_all<-quote_data_all |> select(timestamp,bidPrice,bidSize,askPrice,askSize) 
+quote_data_all<-quote_data_all |> rename(bidVolume=bidSize,askVolume=askSize)
+trade_data_all<-trade_data_all |> select(timestamp,price,size,side)
+trade_data_all<-trade_data_all |> rename(Volume=size)
+```
+
+ The intervals that are used for calculation of TFI and contemporaneous price 
+change are the same as the intervals used in OFI modelling: 1 s, 10 s, 5 min, 10 min 
+and 1 h
