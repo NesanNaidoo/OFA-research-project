@@ -177,3 +177,252 @@ kpss.test(tfi_data$TFI, null = "Level")
 
 ```
 
+## 5.1.1 Prices
+Mid-price over time (Price chart)
+
+```{r}
+#| fig-width: 9
+#| fig-height: 3
+# Mid-price = (Bid price + Ask price) / 2
+# Plot mid-price over time for the selected day.
+#15th October 2017
+# quote_data_day <- quote_data_all |>
+#   mutate(timestamp = ymd_hms(timestamp)) |>
+#   filter(as_date(timestamp) == as_date("2017-10-15")) |>
+#   mutate(mid_price = (bidPrice + askPrice) / 2)
+# Define custom 3-hour breaks from 03:00 to 21:00
+start_time <- as.POSIXct("2017-10-15 03:00:00")
+end_time   <- as.POSIXct("2017-10-15 21:00:00")
+breaks_seq <- seq(from = start_time, to = end_time, by = "3 hours")
+
+# Plot with custom breaks and labels
+ggplot(quote_data_day, aes(x = timestamp, y = mid_price)) +
+  geom_line(color = "blue") +
+  scale_x_datetime(
+    breaks = breaks_seq,
+    labels = format(breaks_seq, "%m.%d.%H")
+  ) +
+  labs(title = "XBTUSD Mid-Price Series (15 Oct 2017)",
+       x = "", y = "Mid-Price (USD)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+#Mid-price plot: shows the price movements over the trading day
+
+```
+
+Mid-price change over time (Tick-to-tick MP chart)
+```{r}
+#| fig-width: 9
+#| fig-height: 3
+# Mid-price change = current mid-price − previous mid-price.
+# This gives tick-to-tick price movements.
+# Plot the differenced series over time
+
+quote_data_day <- quote_data_day |>
+  arrange(timestamp) |>
+  mutate(mid_price_change = c(NA, diff(mid_price)))
+
+# Define custom 3-hour breaks from 03:00 to 21:00
+start_time <- as.POSIXct("2017-10-15 03:00:00")
+end_time   <- as.POSIXct("2017-10-15 21:00:00")
+breaks_seq <- seq(from = start_time, to = end_time, by = "3 hours")
+
+# Plot with custom breaks and labels
+ggplot(quote_data_day, aes(x = timestamp, y = mid_price_change)) +
+  geom_line(color = "orange") +
+  scale_x_datetime(
+    breaks = breaks_seq,
+    labels = format(breaks_seq, "%m.%d.%H")
+  ) +
+  labs(title = "Tick-to-Tick Mid-Price Change (15 Oct 2017)",
+       x = "", y = "Mid-Price Change (USD)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+# # mid-price change
+# ggplot(quote_data_day, aes(x = timestamp, y = mid_price_change)) +
+#   geom_line(color = "orange") +
+#   labs(title = "Tick-to-Tick Mid-Price Change (15 Oct 2017)",
+#        x = "Time", y = "Mid-Price Change (USD)")
+#Mid-price plot: shows the price movements over the trading day
+
+```
+
+Rolling volatility of mid-price changes (Moving Std Dev chart)
+```{r}
+#| fig-width: 9
+#| fig-height: 3
+# Proxy for volatility: moving standard deviation of mid-price changes.
+# Rolling window: 1000 ticks, as per the paper.
+
+#rolling standard deviation (volatility proxy)
+quote_data_day$rolling_volatility <- rollapply(
+  quote_data_day$mid_price_change,
+  width = 1000,
+  FUN = sd,
+  fill = NA,
+  align = "right"
+)
+
+# Define custom 3-hour breaks from 03:00 to 21:00
+start_time <- as.POSIXct("2017-10-15 03:00:00")
+end_time   <- as.POSIXct("2017-10-15 21:00:00")
+breaks_seq <- seq(from = start_time, to = end_time, by = "3 hours")
+
+# Plot with custom breaks and labels
+ggplot(quote_data_day, aes(x = timestamp, y = rolling_volatility)) +
+  geom_line(color = "darkgreen") +
+  scale_x_datetime(
+    breaks = breaks_seq,
+    labels = format(breaks_seq, "%m.%d.%H")
+  ) +
+  labs(title = "Rolling Volatility (1000-tick window)",
+       x = "", y = "Std Dev of Mid-Price Change") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#Rolling volatility plot: shows estimated volatility over the day
+
+```
+
+# 5.2  Order flow imbalance
+Table 1: XBTUSD 1-Second Arrival Rate Statistics
+```{r}
+# 1-second intervals and count updates per second
+arrival_rates <- quote_data_all |>
+  mutate(timestamp = ymd_hms(timestamp),
+         second_bucket = floor_date(timestamp, unit = "1 sec")) |>
+  count(second_bucket, name = "updates_per_second")
+
+# Summarize statistics
+summary_table1 <- arrival_rates |>
+  summarise(
+    Mean = mean(updates_per_second),
+    SD = sd(updates_per_second),
+    Min = min(updates_per_second),
+    `25%` = quantile(updates_per_second, 0.25),
+    `50%` = median(updates_per_second),
+    `75%` = quantile(updates_per_second, 0.75),
+    Max = max(updates_per_second)
+  )
+
+print(summary_table1)
+```
+
+Figure 2: ACF of 10-Second Arrival Counts
+Count the number of quote updates per 10-second bucket.
+Compute and plot the autocorrelation function (ACF) of these counts.
+```{r}
+#| fig-width: 5
+#| fig-height: 5
+# Step 1: Aggregate updates into 10-second buckets
+# arrival_10s <- quote_data_all %>%
+#   mutate(timestamp = ymd_hms(timestamp),
+#          ten_sec_bucket = floor_date(timestamp, unit = "10 sec")) %>%
+#   count(ten_sec_bucket, name = "updates_per_10s")
+# 
+# # Step 2: Compute ACF manually (limit to 10 lags)
+# acf_result <- acf(arrival_10s$updates_per_10s, lag.max = 10, plot = FALSE)
+# 
+# # Step 3: Convert ACF to dataframe for ggplot
+# acf_df <- data.frame(
+#   Lag = as.numeric(acf_result$lag),
+#   ACF = as.numeric(acf_result$acf)
+# )
+# 
+# # Step 4: Compute confidence bounds (approx ±1.96/sqrt(N))
+# N <- length(arrival_10s$updates_per_10s)
+# conf_interval <- 1.96 / sqrt(N)
+
+# Step 5: Plot as bars with red dashed confidence lines
+library(scales)
+
+# Plot as bars with adjusted axes and styling
+ggplot(acf_df, aes(x = Lag, y = ACF)) +
+  geom_bar(stat = "identity", fill = "steelblue", width = 0.4) +
+  geom_hline(yintercept = c(conf_interval, -conf_interval), linetype = "dashed", color = "red") +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black") +
+  scale_x_continuous(
+    breaks = 0:9,
+    limits = c(-0.5, 9.5)  # Expand limits to avoid clipping bars at 0 and 9
+  ) +
+  scale_y_continuous(
+    breaks = seq(0, 1, by = 0.1),
+    limits = c(-0.05, 1.05),   # Ensure CI lines visible below 0.0
+    expand = c(0, 0)
+  ) +
+  labs(title = "",
+       x = "Lag",
+       y = "Autocorrelation") +
+  theme_minimal()
+#Update Coutns ACF
+```
+
+
+Table 2: ADF Test on OFI Series
+Perform the Augmented Dickey-Fuller (ADF) test on the OFI time series.
+Report: ADF statistic, p-value, Critical values
+```{r}
+
+# Aggregate OFI into 10-second intervals
+ofi_10s <- quote_data_all |>
+  mutate(timestamp = ymd_hms(timestamp),
+         interval_time = floor_date(timestamp, unit = "10 sec")) |>
+  group_by(interval_time) |>
+  summarise(OFI = sum(OFI, na.rm = TRUE)) |>
+  ungroup()
+
+# Clean NA values (if any)
+ofi_series_10s <- na.omit(ofi_10s$OFI)
+
+# Perform ADF test on non-differenced OFI (10s sampling)
+adf_result <- adf.test(ofi_series_10s)
+
+
+print(adf_result)
+```
+
+ Fig. 3  XBTUSD 10-s order flow imbalance ACF
+```{r}
+#| fig-width: 5
+#| fig-height: 5
+# Step 1: Aggregate OFI into 10-second intervals
+ofi_10s <- quote_data_all %>%
+  mutate(timestamp = ymd_hms(timestamp),
+         interval_time = floor_date(timestamp, unit = "10 sec")) %>%
+  group_by(interval_time) %>%
+  summarise(OFI = sum(OFI, na.rm = TRUE)) %>%
+  ungroup()
+
+# Step 2: Compute ACF of 10-second OFI (limit to 10 lags)
+acf_ofi_result <- acf(ofi_10s$OFI, lag.max = 10, plot = FALSE)
+
+# Step 3: Convert ACF to dataframe for ggplot
+acf_ofi_df <- data.frame(
+  Lag = as.numeric(acf_ofi_result$lag),
+  ACF = as.numeric(acf_ofi_result$acf)
+)
+
+# Step 4: Compute confidence bounds
+N_ofi <- length(ofi_10s$OFI)
+conf_interval_ofi <- 1.96 / sqrt(N_ofi)
+
+# Step 5: Plot OFI ACF as bars with CI lines (same format as previous)
+ggplot(acf_ofi_df, aes(x = Lag, y = ACF)) +
+  geom_bar(stat = "identity", fill = "steelblue", width = 0.4) +
+  geom_hline(yintercept = c(conf_interval_ofi, -conf_interval_ofi), linetype = "dashed", color = "red") +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black") +
+  scale_x_continuous(
+    breaks = 0:9,
+    limits = c(-0.5, 9.5)
+  ) +
+  scale_y_continuous(
+    breaks = seq(0, 1, by = 0.1),
+    limits = c(-0.05, 1.05),
+    expand = c(0, 0)
+  ) +
+  labs(title = "XBTUSD 10-Second Order Flow Imbalance ACF",
+       x = "Lag",
+       y = "Autocorrelation") +
+  theme_minimal()
+
+```
+
