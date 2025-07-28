@@ -133,50 +133,6 @@ run_ols <- function(df, xvar, yvar) {
 ```
 
 
-```{r}
-#loop over the different time aggregations
-intervals <- c("1 sec", "10 secs", "1 min", "5 mins", "10 mins", "1 hour")
-results <- data.frame()
-
-for (intv in intervals) {
-  ofi_data <- aggregate_ofi(quote_data_all, interval = intv)
-  tfi_data <- aggregate_tfi(trade_data_all, quote_data_all, interval = intv)
-
-  ofi_stats <- run_ols(ofi_data, "OFI", "mid_price_change")
-  tfi_stats <- run_ols(tfi_data, "TFI", "mid_price_change")
-
-  results <- rbind(results, data.frame(
-    interval = intv,
-    alpha_OFI = ofi_stats["alpha"],
-    beta_OFI = ofi_stats["beta"],
-    t_beta_OFI = ofi_stats["t_beta"],
-    r2_OFI = ofi_stats["r2"],
-    sig_OFI = ofi_stats["sig"],
-    alpha_TFI = tfi_stats["alpha"],
-    beta_TFI = tfi_stats["beta"],
-    t_beta_TFI = tfi_stats["t_beta"],
-    r2_TFI = tfi_stats["r2"],
-    sig_TFI = tfi_stats["sig"]
-  ))
-}
-
-```
-
-```{r}
-print(results)
-#write.csv(results, "table3_replication.csv", row.names = FALSE)
-```
-
-```{r}
-#Stationarity test
-adf.test(ofi_data$OFI)
-kpss.test(ofi_data$OFI, null = "Level")
-
-adf.test(tfi_data$TFI)
-kpss.test(tfi_data$TFI, null = "Level")
-
-```
-
 ## 5.1.1 Prices
 Mid-price over time (Price chart)
 
@@ -384,28 +340,27 @@ print(adf_result)
 ```{r}
 #| fig-width: 5
 #| fig-height: 5
-# Step 1: Aggregate OFI into 10-second intervals
+# Step 1: Aggregate OFI into 10-second intervals (signed sums)
 ofi_10s <- quote_data_all %>%
-  mutate(timestamp = ymd_hms(timestamp),
-         interval_time = floor_date(timestamp, unit = "10 sec")) %>%
+  mutate(interval_time = floor_date(timestamp, unit = "10 sec")) %>%
   group_by(interval_time) %>%
   summarise(OFI = sum(OFI, na.rm = TRUE)) %>%
   ungroup()
 
-# Step 2: Compute ACF of 10-second OFI (limit to 10 lags)
+# Step 2: Compute ACF on aggregated, signed OFI (non-differenced)
 acf_ofi_result <- acf(ofi_10s$OFI, lag.max = 10, plot = FALSE)
 
-# Step 3: Convert ACF to dataframe for ggplot
+# Step 3: Format ACF result for plotting
 acf_ofi_df <- data.frame(
   Lag = as.numeric(acf_ofi_result$lag),
   ACF = as.numeric(acf_ofi_result$acf)
 )
 
-# Step 4: Compute confidence bounds
+# Step 4: Calculate 95% confidence interval
 N_ofi <- length(ofi_10s$OFI)
 conf_interval_ofi <- 1.96 / sqrt(N_ofi)
 
-# Step 5: Plot OFI ACF as bars with CI lines (same format as previous)
+# Step 5: Plot OFI ACF (same style as Silantyev's Figure 3)
 ggplot(acf_ofi_df, aes(x = Lag, y = ACF)) +
   geom_bar(stat = "identity", fill = "steelblue", width = 0.4) +
   geom_hline(yintercept = c(conf_interval_ofi, -conf_interval_ofi), linetype = "dashed", color = "red") +
@@ -415,14 +370,62 @@ ggplot(acf_ofi_df, aes(x = Lag, y = ACF)) +
     limits = c(-0.5, 9.5)
   ) +
   scale_y_continuous(
-    breaks = seq(0, 1, by = 0.1),
-    limits = c(-0.05, 1.05),
+    breaks = seq(-0.1, 1, by = 0.1),
+    limits = c(-0.1, 1.05),
     expand = c(0, 0)
   ) +
-  labs(title = "XBTUSD 10-Second Order Flow Imbalance ACF",
+  labs(title = "OFI 10-Second ACF",
        x = "Lag",
        y = "Autocorrelation") +
   theme_minimal()
+```
+
+
+
+
+Table 3:  Results: order flow imbalance and trade flow imbalance model parameter estimation
+
+```{r}
+#loop over the different time aggregations
+intervals <- c("1 sec", "10 secs", "1 min", "5 mins", "10 mins", "1 hour")
+results <- data.frame()
+
+for (intv in intervals) {
+  ofi_data <- aggregate_ofi(quote_data_all, interval = intv)
+  tfi_data <- aggregate_tfi(trade_data_all, quote_data_all, interval = intv)
+
+  ofi_stats <- run_ols(ofi_data, "OFI", "mid_price_change")
+  tfi_stats <- run_ols(tfi_data, "TFI", "mid_price_change")
+
+  results <- rbind(results, data.frame(
+    interval = intv,
+    alpha_OFI = ofi_stats["alpha"],
+    beta_OFI = ofi_stats["beta"],
+    t_beta_OFI = ofi_stats["t_beta"],
+    r2_OFI = ofi_stats["r2"],
+    sig_OFI = ofi_stats["sig"],
+    alpha_TFI = tfi_stats["alpha"],
+    beta_TFI = tfi_stats["beta"],
+    t_beta_TFI = tfi_stats["t_beta"],
+    r2_TFI = tfi_stats["r2"],
+    sig_TFI = tfi_stats["sig"]
+  ))
+}
+
+```
+
+```{r}
+print(results)
+#write.csv(results, "table3_replication.csv", row.names = FALSE)
+```
+
+```{r}
+#Stationarity test
+adf.test(ofi_data$OFI)
+kpss.test(ofi_data$OFI, null = "Level")
+
+adf.test(tfi_data$TFI)
+kpss.test(tfi_data$TFI, null = "Level")
 
 ```
 
