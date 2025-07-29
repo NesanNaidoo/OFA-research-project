@@ -154,27 +154,42 @@ Mid-price over time (Price chart)
 #Mid-price = (Bid price + Ask price) / 2
 # Plot mid-price over time for the selected day.
 #15th October 2017
+# Prepare mid-price data for 15 Oct 2017
 quote_data_day <- quote_data_all |>
-mutate(timestamp = ymd_hms(timestamp)) |>
-filter(as_date(timestamp) == as_date("2017-10-15")) |>
-mutate(mid_price = (bidPrice + askPrice) / 2)
+  mutate(timestamp = ymd_hms(timestamp, tz = "UTC")) |>
+  filter(as_date(timestamp) == as_date("2017-10-15")) |>
+  mutate(mid_price = (bidPrice + askPrice) / 2)
 
-# Define custom 3-hour breaks from 03:00 to 21:00
-start_time <- as.POSIXct("2017-10-15 03:00:00")
-end_time   <- as.POSIXct("2017-10-15 21:00:00")
+# Define 3-hour breaks in UTC
+start_time <- as.POSIXct("2017-10-15 03:00:00", tz = "UTC")
+end_time   <- as.POSIXct("2017-10-15 21:00:00", tz = "UTC")
 breaks_seq <- seq(from = start_time, to = end_time, by = "3 hours")
 
-# Plot with custom breaks and labels
-ggplot(quote_data_day, aes(x = timestamp, y = mid_price)) +
-  geom_line(color = "blue") +
+# Plot XBTUSD Mid-Price Series (15 Oct 2017)
+ggplot(quote_data_day, aes(x = timestamp, y = mid_price, color = "midprice")) +
+  geom_line() +
+  scale_color_manual(values = c("midprice" = "blue")) +
   scale_x_datetime(
     breaks = breaks_seq,
-    labels = format(breaks_seq, "%m.%d.%H")
+    labels = format(breaks_seq, "%m.%d.%H", tz = "UTC"),
+    timezone = "UTC"
   ) +
-  labs(title = "XBTUSD Mid-Price Series (15 Oct 2017)",
-       x = "", y = "Mid-Price (USD)") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
+  labs(
+    title = "",
+    x = "Day of 15th October 2017 (dd.mm.hh)", y = "Mid-Price (USD)",
+    color = NULL
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+     axis.title.x = element_text(margin = margin(t = 10)),
+  axis.title.y = element_text(margin = margin(r = 10)),  
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
+    legend.position = c(1, 1),
+    legend.justification = c(1, 1),
+    legend.background = element_rect(fill = "white", color = "black")
+  )
 
 
 #Mid-price plot: shows the price movements over the trading day
@@ -188,32 +203,44 @@ Mid-price change over time (Tick-to-tick MP chart)
 # Mid-price change = current mid-price − previous mid-price.
 # This gives tick-to-tick price movements.
 # Plot the differenced series over time
+# Ensure timestamps are in UTC
+quote_data_day$timestamp <- as.POSIXct(quote_data_day$timestamp, tz = "UTC")
 
+# Calculate tick-to-tick mid-price change
 quote_data_day <- quote_data_day |>
   arrange(timestamp) |>
   mutate(mid_price_change = c(NA, diff(mid_price)))
 
-# Define custom 3-hour breaks from 03:00 to 21:00
-start_time <- as.POSIXct("2017-10-15 03:00:00")
-end_time   <- as.POSIXct("2017-10-15 21:00:00")
+# Define 3-hour breaks in UTC
+start_time <- as.POSIXct("2017-10-15 03:00:00", tz = "UTC")
+end_time   <- as.POSIXct("2017-10-15 21:00:00", tz = "UTC")
 breaks_seq <- seq(from = start_time, to = end_time, by = "3 hours")
 
-# Plot with custom breaks and labels
-ggplot(quote_data_day, aes(x = timestamp, y = mid_price_change)) +
-  geom_line(color = "orange") +
+# Plot # Tick-to-Tick Mid-Price Change (15 Oct 2017)
+ggplot(quote_data_day, aes(x = timestamp, y = mid_price_change, color = "dmidprice")) +
+  geom_line() +
+  scale_color_manual(values = c("dmidprice" = "orange")) +
   scale_x_datetime(
     breaks = breaks_seq,
-    labels = format(breaks_seq, "%m.%d.%H")
+    labels = format(breaks_seq, "%m.%d.%H", tz = "UTC"),
+    timezone = "UTC"
   ) +
-  labs(title = "Tick-to-Tick Mid-Price Change (15 Oct 2017)",
-       x = "", y = "Mid-Price Change (USD)") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-# # mid-price change
-# ggplot(quote_data_day, aes(x = timestamp, y = mid_price_change)) +
-#   geom_line(color = "orange") +
-#   labs(title = "Tick-to-Tick Mid-Price Change (15 Oct 2017)",
-#        x = "Time", y = "Mid-Price Change (USD)")
-#Mid-price plot: shows the price movements over the trading day
+  labs(
+    title = "",
+    x = "Day of 15th October 2017 (dd.mm.hh)", y = "Mid-Price change (USD)",
+    color = NULL
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title.x = element_text(margin = margin(t = 10)),
+  axis.title.y = element_text(margin = margin(r = 10)),  
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
+    legend.position = c(1, 1),
+    legend.justification = c(1, 1),
+    legend.background = element_rect(fill = "white", color = "black")
+  )
 
 ```
 
@@ -224,7 +251,10 @@ Rolling volatility of mid-price changes (Moving Std Dev chart)
 # Proxy for volatility: moving standard deviation of mid-price changes.
 # Rolling window: 1000 ticks, as per the paper.
 
-#rolling standard deviation (volatility proxy)
+# Ensure timestamps are in UTC
+quote_data_day$timestamp <- as.POSIXct(quote_data_day$timestamp, tz = "UTC")
+
+# Rolling volatility
 quote_data_day$rolling_volatility <- rollapply(
   quote_data_day$mid_price_change,
   width = 1000,
@@ -233,21 +263,37 @@ quote_data_day$rolling_volatility <- rollapply(
   align = "right"
 )
 
-# Define custom 3-hour breaks from 03:00 to 21:00
-start_time <- as.POSIXct("2017-10-15 03:00:00")
-end_time   <- as.POSIXct("2017-10-15 21:00:00")
+# Breaks with UTC
+start_time <- as.POSIXct("2017-10-15 03:00:00", tz = "UTC")
+end_time   <- as.POSIXct("2017-10-15 21:00:00", tz = "UTC")
 breaks_seq <- seq(from = start_time, to = end_time, by = "3 hours")
 
-# Plot with custom breaks and labels
-ggplot(quote_data_day, aes(x = timestamp, y = rolling_volatility)) +
-  geom_line(color = "darkgreen") +
+# Plot # Rolling Volatility (1000-tick window)
+ggplot(quote_data_day, aes(x = timestamp, y = rolling_volatility, color = "vol")) +
+  geom_line() +
+  scale_color_manual(values = c("vol" = "darkgreen")) +
   scale_x_datetime(
     breaks = breaks_seq,
-    labels = format(breaks_seq, "%m.%d.%H")
+    labels = format(breaks_seq, "%m.%d.%H", tz = "UTC"),
+    timezone = "UTC"
   ) +
-  labs(title = "Rolling Volatility (1000-tick window)",
-       x = "", y = "Std Dev of Mid-Price Change") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  labs(
+    title = "",
+    x = "Day of 15th October 2017 (dd.mm.hh)", y = "Std. dev. of Mid-Price change",
+    color = NULL
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title.x = element_text(margin = margin(t = 10)),
+  axis.title.y = element_text(margin = margin(r = 10)),  
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
+    legend.position = c(1, 1),
+    legend.justification = c(1, 1),
+    legend.background = element_rect(fill = "white", color = "black")
+  )
+
 #Rolling volatility plot: shows estimated volatility over the day
 
 ```
