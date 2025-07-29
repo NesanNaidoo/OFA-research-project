@@ -5,7 +5,8 @@ format: pdf
 ---
 ## Required libraries
 ```{r}
-library(dplyr)
+library(dplyr) # pipe operator
+library(stringr) # string replace
 library(lubridate)
 library(ggplot2) #plots
 library(zoo) #Resampling if needed
@@ -22,11 +23,22 @@ trade_data_all<-read.csv("XBTUSD_trades_20171001_20171023.csv",header = TRUE)
 
 ## Formatting data 
 ```{r}
-## so it looks like research paper 
+## so it matches research paper format
 quote_data_all<-quote_data_all |> select(timestamp,bidPrice,bidSize,askPrice,askSize) 
 quote_data_all<-quote_data_all |> rename(bidVolume=bidSize,askVolume=askSize)
 trade_data_all<-trade_data_all |> select(timestamp,price,size,side)
 trade_data_all<-trade_data_all |> rename(Volume=size)
+
+quote_data_all <- quote_data_all %>%
+  mutate(
+    timestamp = str_replace(timestamp, "D", " "),
+  )
+
+trade_data_all <- trade_data_all %>%
+  mutate(
+    timestamp = str_replace(timestamp, "D", " "),
+  )
+
 ```
 
  The intervals that are used for calculation of TFI and contemporaneous price 
@@ -139,13 +151,14 @@ Mid-price over time (Price chart)
 ```{r}
 #| fig-width: 9
 #| fig-height: 3
-# Mid-price = (Bid price + Ask price) / 2
+#Mid-price = (Bid price + Ask price) / 2
 # Plot mid-price over time for the selected day.
 #15th October 2017
-# quote_data_day <- quote_data_all |>
-#   mutate(timestamp = ymd_hms(timestamp)) |>
-#   filter(as_date(timestamp) == as_date("2017-10-15")) |>
-#   mutate(mid_price = (bidPrice + askPrice) / 2)
+quote_data_day <- quote_data_all |>
+mutate(timestamp = ymd_hms(timestamp)) |>
+filter(as_date(timestamp) == as_date("2017-10-15")) |>
+mutate(mid_price = (bidPrice + askPrice) / 2)
+
 # Define custom 3-hour breaks from 03:00 to 21:00
 start_time <- as.POSIXct("2017-10-15 03:00:00")
 end_time   <- as.POSIXct("2017-10-15 21:00:00")
@@ -270,23 +283,23 @@ Compute and plot the autocorrelation function (ACF) of these counts.
 #| fig-width: 5
 #| fig-height: 5
 # Step 1: Aggregate updates into 10-second buckets
-# arrival_10s <- quote_data_all %>%
-#   mutate(timestamp = ymd_hms(timestamp),
-#          ten_sec_bucket = floor_date(timestamp, unit = "10 sec")) %>%
-#   count(ten_sec_bucket, name = "updates_per_10s")
-# 
-# # Step 2: Compute ACF manually (limit to 10 lags)
-# acf_result <- acf(arrival_10s$updates_per_10s, lag.max = 10, plot = FALSE)
-# 
+arrival_10s <- quote_data_all %>%
+ mutate(timestamp = ymd_hms(timestamp),
+       ten_sec_bucket = floor_date(timestamp, unit = "10 sec")) %>%
+count(ten_sec_bucket, name = "updates_per_10s")
+
+# Step 2: Compute ACF manually (limit to 10 lags)
+acf_result <- acf(arrival_10s$updates_per_10s, lag.max = 10, plot = FALSE)
+
 # # Step 3: Convert ACF to dataframe for ggplot
-# acf_df <- data.frame(
-#   Lag = as.numeric(acf_result$lag),
-#   ACF = as.numeric(acf_result$acf)
-# )
+acf_df <- data.frame(
+ Lag = as.numeric(acf_result$lag),
+ ACF = as.numeric(acf_result$acf)
+ )
 # 
 # # Step 4: Compute confidence bounds (approx ±1.96/sqrt(N))
-# N <- length(arrival_10s$updates_per_10s)
-# conf_interval <- 1.96 / sqrt(N)
+N <- length(arrival_10s$updates_per_10s)
+conf_interval <- 1.96 / sqrt(N)
 
 # Step 5: Plot as bars with red dashed confidence lines
 library(scales)
