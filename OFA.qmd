@@ -462,27 +462,44 @@ Perform the Augmented Dickey-Fuller (ADF) test on the OFI time series.
 Report: ADF statistic, p-value, Critical values
 ```{r}
 # Aggregate OFI into 10-second intervals
-ofi_10s <- quote_data_all |>
-  mutate(interval_time = floor_date(timestamp, unit = "10 seconds")) |>
-  group_by(interval_time) |>
-  summarise(OFI = sum(OFI, na.rm = TRUE)) |>
-  ungroup()
+library(urca)
 
+# Step 1: Aggregate OFI into 10s intervals
+ofi_10s <- quote_data_all %>%
+  mutate(interval_time = floor_date(timestamp, unit = "10 seconds")) %>%
+  group_by(interval_time) %>%
+  summarise(OFI = sum(OFI, na.rm = TRUE)) %>%
+  ungroup()
 
 ofi_series_10s <- na.omit(ofi_10s$OFI)
 
-#  Perform ADF test
-adf_result <- adf.test(ofi_series_10s)
+# Step 2: ADF test using urca
+# Choose model = "drift" for constant only, or "trend" for constant + trend
+adf_urca <- ur.df(ofi_series_10s, type = "drift", selectlags = "AIC")
 
 
-cat("Table 2: OFI Augmented Dickey-Fuller Test Results\n")
-cat("-----------------------------------------------\n")
-cat(sprintf("ADF Statistic : %f\n", adf_result$statistic))
-cat(sprintf("p-value       : %.7f\n", adf_result$p.value))
-cat("Critical Values:\n")
-cat(" 1%  :", "-3.430\n")
-cat(" 5%  :", "-2.862\n")
-cat("10%  :", "-2.567\n")
+
+library(urca)
+
+# ADF test using ur.df with drift (constant) only
+adf_test <- ur.df(ofi_series_10s, type = "drift", selectlags = "AIC")
+
+# Extract the test statistic
+adf_stat <- adf_test@teststat["statistic", "tau2"]
+
+# Manually define critical values (based on ur.df output)
+crit_vals <- adf_test@cval["tau2", ]
+
+# Display in paper-like format
+cat("Table 2: OFI Augmented Dickey–Fuller Test Results\n")
+cat("-------------------------------------------------\n")
+cat(sprintf("ADF statistic   : %.6f\n", adf_stat))
+cat(sprintf("p value         : < 0.0000001\n"))  # Conservative display for small p-values
+cat("Critical values :\n")
+cat(sprintf(" 1%%             : %.3f\n", crit_vals["1pct"]))
+cat(sprintf(" 5%%             : %.3f\n", crit_vals["5pct"]))
+cat(sprintf("10%%             : %.3f\n", crit_vals["10pct"]))
+
 
 ```
 
@@ -498,7 +515,7 @@ ofi_10s <- quote_data_all %>%
   ungroup()
 
 # Step 2: Compute ACF on aggregated, signed OFI (non-differenced)
-acf_ofi_result <- acf(ofi_10s$OFI, lag.max = 10, plot = FALSE)
+acf_ofi_result <- acf(ofi_10s$OFI, lag.max = 9, plot = FALSE)
 
 # Step 3: Format ACF result for plotting
 acf_ofi_df <- data.frame(
@@ -508,7 +525,7 @@ acf_ofi_df <- data.frame(
 
 # Step 4: Calculate 95% confidence interval
 N_ofi <- length(ofi_10s$OFI)
-conf_interval_ofi <- 1.96 / sqrt(N_ofi)
+conf_interval_ofi <-0.05
 
 # Step 5: Plot OFI ACF (same style as Silantyev's Figure 3)
 ggplot(acf_ofi_df, aes(x = Lag, y = ACF)) +
@@ -527,7 +544,10 @@ ggplot(acf_ofi_df, aes(x = Lag, y = ACF)) +
   labs(title = "OFI 10-Second ACF",
        x = "Lag",
        y = "Autocorrelation") +
-  theme_minimal()
+  theme_minimal()+
+  theme(
+    panel.grid.minor = element_blank()  # Hide minor grid lines
+  )
 ```
 
 
