@@ -326,12 +326,11 @@ results <- data.frame(
   stringsAsFactors = FALSE
 )
 
-# Loop over each k
 for (k in k_values) {
   # Subsample the mid-price: take every k-th observation
   subsampled <- quote_data_day$mid_price[seq(1, nrow(quote_data_day), by = k)]
   
-  # Calculate differenced price series ΔPk
+  # calculate differenced price series ΔPk
   dpk <- diff(subsampled)
   
   # Perform ADF and KPSS tests
@@ -399,6 +398,10 @@ summary_table1 <- arrival_rates |>
 
 print(summary_table1)
 
+
+
+
+
 ```
 
 Figure 2: ACF of 10-Second Arrival Counts
@@ -418,7 +421,7 @@ arrival_10s <- quote_data_all %>%
   count(ten_sec_bucket, name = "updates_per_10s")
 
 # Step 2: Compute ACF for lags 0–10
-acf_result <- acf(arrival_10s$updates_per_10s, lag.max = 10, plot = FALSE)
+acf_result <- acf(arrival_10s$updates_per_10s, lag.max = 9, plot = FALSE)
 
 # Step 3: Convert to dataframe
 acf_df <- data.frame(
@@ -428,14 +431,14 @@ acf_df <- data.frame(
 
 # Step 4: Confidence interval
 N <- length(arrival_10s$updates_per_10s)
-conf_interval <- 1.96 / sqrt(N)
+conf_interval <- 0.05 #recheck
 
 # Step 5: Plot
 ggplot(acf_df, aes(x = Lag, y = ACF)) +
   geom_bar(stat = "identity", fill = "steelblue", width = 0.4) +
   geom_hline(yintercept = c(conf_interval, -conf_interval), linetype = "dashed", color = "red") +
   geom_hline(yintercept = 0, linetype = "solid", color = "black") +
-  scale_x_continuous(breaks = 0:10, limits = c(-0.5, 10.5)) +
+  scale_x_continuous(breaks = 0:9, limits = c(-0.5, 9.5)) +
   scale_y_continuous(
     breaks = seq(0, 1, by = 0.1),
     limits = c(-0.05, 1.05),
@@ -446,7 +449,10 @@ ggplot(acf_df, aes(x = Lag, y = ACF)) +
     x = "Lag",
     y = "Autocorrelation"
   ) +
-  theme_minimal()
+  theme_minimal()+
+  theme(
+    panel.grid.minor = element_blank()  # Hide minor grid lines
+  )
 
 ```
 
@@ -455,20 +461,20 @@ Table 2: ADF Test on OFI Series
 Perform the Augmented Dickey-Fuller (ADF) test on the OFI time series.
 Report: ADF statistic, p-value, Critical values
 ```{r}
-# Step 1: Aggregate OFI into 10-second intervals
+# Aggregate OFI into 10-second intervals
 ofi_10s <- quote_data_all |>
   mutate(interval_time = floor_date(timestamp, unit = "10 seconds")) |>
   group_by(interval_time) |>
   summarise(OFI = sum(OFI, na.rm = TRUE)) |>
   ungroup()
 
-# Step 2: Remove NAs
+
 ofi_series_10s <- na.omit(ofi_10s$OFI)
 
-# Step 3: Perform ADF test
+#  Perform ADF test
 adf_result <- adf.test(ofi_series_10s)
 
-# Step 4: Print result in paper-like format
+
 cat("Table 2: OFI Augmented Dickey-Fuller Test Results\n")
 cat("-----------------------------------------------\n")
 cat(sprintf("ADF Statistic : %f\n", adf_result$statistic))
