@@ -64,23 +64,27 @@ quote_data_all <- quote_data_all |>
 
 ```{r}
 #Calculate OFI (One value per quote update)
-quote_data_all <- quote_data_all |> 
-  arrange(timestamp) |> 
+quote_data_all <- quote_data_all %>%
+  arrange(timestamp) %>%
   mutate(
     prev_bidPrice = lag(bidPrice),
     prev_bidVolume = lag(bidVolume),
     prev_askPrice = lag(askPrice),
     prev_askVolume = lag(askVolume),
-    OFI = case_when(
-      bidPrice >= prev_bidPrice ~ bidVolume,
-      bidPrice < prev_bidPrice ~ -prev_bidVolume,
-      TRUE ~ 0
-    ) +
-    case_when(
-      askPrice >= prev_askPrice ~ prev_askVolume,
-      askPrice < prev_askPrice ~ -askVolume,
-      TRUE ~ 0
-    )
+
+    bid_geq = bidPrice >= prev_bidPrice,
+    bid_leq = bidPrice <= prev_bidPrice,
+    ask_geq = askPrice >= prev_askPrice,
+    ask_leq = askPrice <= prev_askPrice,
+
+    OFI = 0
+  ) %>%
+  mutate(
+    OFI = OFI +
+      if_else(bid_geq, bidVolume, 0) -
+      if_else(bid_leq, prev_bidVolume, 0) +
+      if_else(ask_geq, prev_askVolume, 0) -
+      if_else(ask_leq, askVolume, 0)
   )
 
 ```
@@ -508,29 +512,30 @@ cat(sprintf("10%%             : %.3f\n", crit_vals["10pct"]))
 #| fig-width: 5
 #| fig-height: 5
 # Step 1: Aggregate OFI into 10-second intervals (signed sums)
+# Aggregate into 10-second buckets
 ofi_10s <- quote_data_all %>%
   mutate(interval_time = floor_date(timestamp, unit = "10 sec")) %>%
   group_by(interval_time) %>%
   summarise(OFI = sum(OFI, na.rm = TRUE)) %>%
   ungroup()
 
-# Step 2: Compute ACF on aggregated, signed OFI (non-differenced)
+# Compute ACF
 acf_ofi_result <- acf(ofi_10s$OFI, lag.max = 9, plot = FALSE)
 
-# Step 3: Format ACF result for plotting
+# Format for plot
 acf_ofi_df <- data.frame(
   Lag = as.numeric(acf_ofi_result$lag),
   ACF = as.numeric(acf_ofi_result$acf)
 )
 
-# Step 4: Calculate 95% confidence interval
+# Confidence interval
 N_ofi <- length(ofi_10s$OFI)
-conf_interval_ofi <-0.05
+conf_bound <- 0.05
 
-# Step 5: Plot OFI ACF (same style as Silantyev's Figure 3)
+# Plot
 ggplot(acf_ofi_df, aes(x = Lag, y = ACF)) +
   geom_bar(stat = "identity", fill = "steelblue", width = 0.4) +
-  geom_hline(yintercept = c(conf_interval_ofi, -conf_interval_ofi), linetype = "dashed", color = "red") +
+  geom_hline(yintercept = c(conf_bound, -conf_bound), linetype = "dashed", color = "red") +
   geom_hline(yintercept = 0, linetype = "solid", color = "black") +
   scale_x_continuous(
     breaks = 0:9,
@@ -541,9 +546,11 @@ ggplot(acf_ofi_df, aes(x = Lag, y = ACF)) +
     limits = c(-0.1, 1.05),
     expand = c(0, 0)
   ) +
-  labs(title = "OFI 10-Second ACF",
-       x = "Lag",
-       y = "Autocorrelation") +
+  labs(
+    title = "OFI 10-Second ACF",
+    x = "Lag",
+    y = "Autocorrelation"
+  ) +
   theme_minimal()+
   theme(
     panel.grid.minor = element_blank()  # Hide minor grid lines
