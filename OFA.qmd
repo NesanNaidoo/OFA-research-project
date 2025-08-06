@@ -436,7 +436,7 @@ conf_interval <- 0.05 #recheck
 # Step 5: Plot
 ggplot(acf_df, aes(x = Lag, y = ACF)) +
   geom_bar(stat = "identity", fill = "steelblue", width = 0.4) +
-  geom_hline(yintercept = c(conf_interval, -conf_interval), linetype = "dashed", color = "red") +
+  geom_hline(yintercept = c(conf_interval, -conf_interval), linetype = "dashed", color = "red",size=0.7) +
   geom_hline(yintercept = 0, linetype = "solid", color = "black") +
   scale_x_continuous(breaks = 0:9, limits = c(-0.5, 9.5)) +
   scale_y_continuous(
@@ -445,7 +445,7 @@ ggplot(acf_df, aes(x = Lag, y = ACF)) +
     expand = c(0, 0)
   ) +
   labs(
-    title = "ACF of 10-Second Update Counts",
+    title = "",
     x = "Lag",
     y = "Autocorrelation"
   ) +
