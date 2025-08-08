@@ -201,7 +201,8 @@ ggplot(quote_data_day, aes(x = timestamp, y = mid_price, color = "midprice")) +
     panel.background = element_blank(),
     legend.position = c(1, 1),
     legend.justification = c(1, 1),
-    legend.background = element_rect(fill = "white", color = "black")
+    legend.background = element_rect(fill = "white", color = "black"),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.3)
   )
 
 
@@ -252,7 +253,8 @@ ggplot(quote_data_day, aes(x = timestamp, y = mid_price_change, color = "dmidpri
     panel.background = element_blank(),
     legend.position = c(1, 1),
     legend.justification = c(1, 1),
-    legend.background = element_rect(fill = "white", color = "black")
+    legend.background = element_rect(fill = "white", color = "black"),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.3)
   )
 
 ```
@@ -304,7 +306,8 @@ ggplot(quote_data_day, aes(x = timestamp, y = rolling_volatility, color = "vol")
     panel.background = element_blank(),
     legend.position = c(1, 1),
     legend.justification = c(1, 1),
-    legend.background = element_rect(fill = "white", color = "black")
+    legend.background = element_rect(fill = "white", color = "black"),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.3)
   )
 
 #Rolling volatility plot: shows estimated volatility over the day
@@ -445,17 +448,21 @@ ggplot(acf_df, aes(x = Lag, y = ACF)) +
   scale_x_continuous(breaks = 0:9, limits = c(-0.5, 9.5)) +
   scale_y_continuous(
     breaks = seq(0, 1, by = 0.1),
-    limits = c(-0.05, 1.05),
+    limits = c(-0.1, 1.05),
     expand = c(0, 0)
   ) +
   labs(
-    title = "",
+    title = "Update Counts ACF",
     x = "Lag",
     y = "Autocorrelation"
   ) +
   theme_minimal()+
   theme(
-    panel.grid.minor = element_blank()  # Hide minor grid lines
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),,
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)   # Hide minor grid lines
   )
 
 ```
@@ -547,16 +554,123 @@ ggplot(acf_ofi_df, aes(x = Lag, y = ACF)) +
     expand = c(0, 0)
   ) +
   labs(
-    title = "", # OFI 10-Second ACF
+    title = "OFI 10-Second ACF", # OFI 10-Second ACF
     x = "Lag",
     y = "Autocorrelation"
   ) +
   theme_minimal()+
   theme(
-    panel.grid.minor = element_blank()  # Hide minor grid lines
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)  # Hide minor grid lines
   )
 ```
 
+## Fig 4:  XBTUSD 1-s order flow imbalance versus contemporaneous price change
+```{r}
+# 1. Aggregate OFI to 1-second intervals
+ofi_1s <- quote_data_all %>%
+  mutate(interval_time = floor_date(timestamp, unit = "1 second")) %>%
+  group_by(interval_time) %>%
+  summarise(OFI = sum(OFI, na.rm = TRUE), .groups = "drop")
+
+# 2. Aggregate mid-price and compute tick changes
+tick_size <- 0.1  # smallest observed price increment (5 cents)
+
+midprice_1s <- quote_data_all %>%
+  mutate(interval_time = floor_date(timestamp, unit = "1 second")) %>%
+  group_by(interval_time) %>%
+  summarise(mid_price = mean(mid_price, na.rm = TRUE), .groups = "drop") %>%
+  mutate(price_change_ticks = (mid_price - lag(mid_price)) / tick_size)
+
+# 3. Merge OFI and mid-price change data
+ofi_vs_price <- inner_join(ofi_1s, midprice_1s, by = "interval_time") %>%
+  drop_na()
+
+# 4. Scatter plot
+ggplot(ofi_vs_price, aes(x = OFI, y = price_change_ticks)) +
+  geom_point(alpha = 0.5, size = 0.8, color = "steelblue") +
+  labs(
+    title = "XBTUSD 1-second OFI",
+    x = expression(OFI~"("*10^7*")"),
+    y = "Mid-Price Change"
+  ) +
+  scale_x_continuous(
+    limits = c(-0.6e7, 0.8e7),
+    breaks = seq(-0.6e7, 0.8e7, by = 0.2e7),
+    labels = function(x) x / 1e7
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)
+  )
+
+
+
+
+
+
+```
+##  Fig. 5  XBTUSD 1-min order flow imbalance versus contemporaneous price change
+```{r}
+#| fig-height: 5
+#| fig-width: 7
+library(dplyr)
+library(lubridate)
+
+# # 1. Aggregate OFI to 1-minute intervals
+# ofi_1m <- quote_data_all %>%
+#   mutate(interval_time = floor_date(timestamp, unit = "1 minute")) %>%
+#   group_by(interval_time) %>%
+#   summarise(OFI = sum(OFI, na.rm = TRUE), .groups = "drop")
+# 
+# # 2. Aggregate mid-price and compute tick changes at 1-minute intervals
+# tick_size <- 0.1
+# 
+# midprice_1m <- quote_data_all %>%
+#   mutate(interval_time = floor_date(timestamp, unit = "1 minute")) %>%
+#   group_by(interval_time) %>%
+#   summarise(mid_price = mean(mid_price, na.rm = TRUE), .groups = "drop") %>%
+#   mutate(price_change_ticks = (mid_price - lag(mid_price)) / tick_size)
+# 
+# # 3. Merge OFI and mid-price change data
+# ofi_vs_price_1m <- inner_join(ofi_1m, midprice_1m, by = "interval_time") %>%
+#   drop_na()
+
+# 4. Scatter plot for 1-minute OFI
+ggplot(ofi_vs_price_1m, aes(x = OFI, y = price_change_ticks)) +
+  geom_point(alpha = 0.5, size = 0.8, color = "steelblue") +
+  labs(
+    title = "XBTUSD 1-Minute OFI",
+    x = expression(OFI~"("*10^7*")"),
+    y = "Mid-Price Change"
+  ) +
+  scale_x_continuous(
+    limits = c(-0.5e7, 1.5e7),
+    breaks = seq(-0.5e7, 1.5e7, by = 0.5e7),
+    labels = function(x) x / 1e7
+  ) +
+  scale_y_continuous(
+    limits = c(-1250, 750),
+    breaks = seq(-1250, 750, by = 250)
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)
+  )
+
+
+```
 
 
 
