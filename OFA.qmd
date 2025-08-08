@@ -672,6 +672,57 @@ ggplot(ofi_vs_price_1m, aes(x = OFI, y = price_change_ticks)) +
 
 ```
 
+## TFI
+
+### Figure 7: XBTUSD 1-min trade flow imbalance versus contemporaneous price change. R2 = 58.6%
+
+
+```{r}
+#| fig-width: 5
+#| fig-height: 5
+# Filter for 1-minute interval
+one_min_results <- aggregate_tfi(trade_data_all, quote_data_all, interval = "1 min") 
+
+# Run OLS regression and store results
+ols_results <- run_ols(one_min_results, "TFI", "mid_price_change")
+r_squared <- sprintf("%.1f%%", ols_results["r2"] * 100)
+
+# Plot
+ggplot(one_min_results, aes(x = TFI, y = mid_price_change)) +
+  geom_point(alpha = 0.70, size = 0.8, shape = 21, color = "steelblue", fill = "steelblue") +
+  scale_y_continuous(
+    breaks = seq(-1250, 750, by = 250),
+    limits = c(-1250, 800)
+  ) +
+  scale_x_continuous(
+  labels = function(x) {
+    paste0(x/1e7)  # Express everything in terms of 1e7
+  },
+  breaks = seq(-0.75e7, 0.75e7, by = 0.25e7),
+  limits = c(-0.87e7, 0.89e7)
+  ) +
+  labs(
+    title = "XBTUSD 1-Minute TFI",
+    x = expression(TFI~"("*10^7*")"),
+    y = "Mid Price Change"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    panel.grid.major = element_line(color = "grey80", linewidth = 0.2),
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "white", color = NA),
+    panel.border = element_rect(colour = "black", fill= NA, linewidth = 0.1),
+    plot.background = element_rect(fill = "white", color = NA),
+    plot.caption = element_text(hjust = 0.5, size = 9)
+  ) 
+
+# coord_fixed(ratio = (0.89e7 - (-0.87e7))/(800 - (-1250)))  # This makes grid squares
+
+ggsave("XBTUSD_1min_TFI_Mid_Price_Chnage.png", width = 6, height = 5, dpi = 300, bg = "white")
+```
 
 
 ## Table 3:  Results: order flow imbalance and trade flow imbalance model parameter estimation
@@ -720,3 +771,24 @@ kpss.test(tfi_data$TFI, null = "Level")
 
 ```
 
+#Table 3: TFI results
+```{r}
+# define time intervals
+intervals <- c("1 sec", "10 sec", "1 min", "5 min", "10 min", "1 hour")
+
+tfi_results_list <- list() # to store results
+
+# Loop through each interval and calculate TFI and price changes
+for (int in intervals) {
+  # Calculate TFI and price changes for this interval
+  df <- aggregate_tfi(trade_data_all, quote_data_all, interval = int)
+  
+  # Store the interval results
+   tfi_results_list[[int]] <- df
+  
+  # Run OLS regression and print results
+  ols_results <- run_ols(df, "TFI", "mid_price_change")
+  cat("\nResults for interval:", int, "\n")
+  print(ols_results)
+}
+```
