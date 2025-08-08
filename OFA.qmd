@@ -379,7 +379,7 @@ adf_crit_1pct
 ```
 
 # 5.2  Order flow imbalance
-Table 1: XBTUSD 1-Second Arrival Rate Statistics
+## Table 1: XBTUSD 1-Second Arrival Rate Statistics
 ```{r}
 
 arrival_rates <- quote_data_all |>
@@ -408,7 +408,7 @@ print(summary_table1)
 
 ```
 
-Figure 2: ACF of 10-Second Arrival Counts
+## Figure 2: ACF of 10-Second Arrival Counts
 Count the number of quote updates per 10-second bucket.
 Compute and plot the autocorrelation function (ACF) of these counts.
 ```{r}
@@ -461,7 +461,7 @@ ggplot(acf_df, aes(x = Lag, y = ACF)) +
 ```
 
 
-Table 2: ADF Test on OFI Series
+## Table 2: ADF Test on OFI Series
 Perform the Augmented Dickey-Fuller (ADF) test on the OFI time series.
 Report: ADF statistic, p-value, Critical values
 ```{r}
@@ -507,7 +507,7 @@ cat(sprintf("10%%             : %.3f\n", crit_vals["10pct"]))
 
 ```
 
- Fig. 3  XBTUSD 10-s order flow imbalance ACF
+## Fig. 3  XBTUSD 10-s order flow imbalance ACF
 ```{r}
 #| fig-width: 5
 #| fig-height: 5
@@ -547,7 +547,7 @@ ggplot(acf_ofi_df, aes(x = Lag, y = ACF)) +
     expand = c(0, 0)
   ) +
   labs(
-    title = "OFI 10-Second ACF",
+    title = "", # OFI 10-Second ACF
     x = "Lag",
     y = "Autocorrelation"
   ) +
@@ -560,7 +560,7 @@ ggplot(acf_ofi_df, aes(x = Lag, y = ACF)) +
 
 
 
-Table 3:  Results: order flow imbalance and trade flow imbalance model parameter estimation
+## Table 3:  Results: order flow imbalance and trade flow imbalance model parameter estimation
 
 ```{r}
 #loop over the different time aggregations
