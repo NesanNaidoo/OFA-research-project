@@ -314,54 +314,104 @@ ggplot(quote_data_day, aes(x = timestamp, y = rolling_volatility, color = "vol")
 ```{r}
 #To examine stationarity of the differenced price series, augmented Dickey–Fuller (ADF) and KPSS tests are conducted or all variants of k in ΔPk variable. The tests confirm that price series are stationary  for every sampling period k at 1% significance level.
 
-k_values <- c(1, 2, 5, 10, 20, 50, 100)
+library(tseries)
+library(dplyr)
+library(knitr)
+library(lubridate)
 
-results <- data.frame(
-  k = integer(),
-  ADF_p_value = numeric(),
-  KPSS_p_value = numeric(),
-  stringsAsFactors = FALSE
-)
+intervals <- c("1 sec", "10 sec", "5 min", "10 min", "1 hour")
 
-for (k in k_values) {
-  # Subsample the mid-price: take every k-th observation
-  subsampled <- quote_data_day$mid_price[seq(1, nrow(quote_data_day), by = k)]
-  
-  # calculate differenced price series ΔPk
-  dpk <- diff(subsampled)
-  
-  # Perform ADF and KPSS tests
-  adf_result <- adf.test(dpk, alternative = "stationary")
-  kpss_result <- kpss.test(dpk, null = "Level")
-
-  # Store p-values
-  results <- rbind(results, data.frame(
-    k = k,
-    `ADF p-value` = adf_result$p.value,
-    `KPSS p-value` = kpss_result$p.value
-  ))
+perform_stationarity_tests <- function(series) {
+  adf_result <- adf.test(series, alternative = "stationary")
+  kpss_result <- kpss.test(series, null = "Level")
+  data.frame(
+    ADF_Statistic = adf_result$statistic,
+    ADF_p_value = adf_result$p.value,
+    KPSS_Statistic = kpss_result$statistic,
+    KPSS_p_value = kpss_result$p.value
+  )
 }
 
-kable(results, digits = 4, caption = "ADF and KPSS Test Results for ΔPk (Various Sampling Intervals)")
+price_stationarity_results <- data.frame()
 
-# # Example: differenced series
-# dpk <- diff(quote_data_day$mid_price)
-# 
-# # Run ADF test with a drift term (can also use "none" or "trend")
-# adf_result <- ur.df(dpk, type = "drift", selectlags = "AIC")
-# 
-# # Extract test statistic
-# adf_stat <- adf_result@teststat[1]
-# 
-# # Extract 1% critical value
-# adf_crit_1pct <- adf_result@cval[1, "1pct"]
-# 
-# # View values
-# adf_stat  -505.2898
-# adf_crit_1pct -3.43
+for (int in intervals) {
+  # Aggregate mid_price by interval
+  agg <- quote_data_all %>%
+    mutate(interval_time = floor_date(timestamp, unit = int)) %>%
+    group_by(interval_time) %>%
+    summarise(mid_price = mean(mid_price, na.rm = TRUE), .groups = "drop")
+  
+  # Calculate differenced price series ΔPₖ
+  dpk <- diff(agg$mid_price)
+  
+  # Run tests
+  test_results <- perform_stationarity_tests(dpk)
+  test_results$Interval <- int
+  
+  price_stationarity_results <- bind_rows(price_stationarity_results, test_results)
+}
+
+price_stationarity_results <- price_stationarity_results %>%
+  select(Interval, everything())
+
+kable(price_stationarity_results, digits = 4,
+      caption = "ADF and KPSS Test Results for ΔPₖ at Different Sampling Periods")
+
 
 ```
 
+
+### Using Urca Package
+```{r}
+library(urca)
+library(dplyr)
+library(lubridate)
+library(knitr)
+
+intervals <- c("1 sec", "10 sec", "5 min", "10 min", "1 hour")
+
+perform_stationarity_urca <- function(series) {
+  # ADF test (trend = "none" because we're testing stationary diff series)
+  adf <- ur.df(series, type = "none", lags = 1)
+  
+  # KPSS test (null: stationary)
+  kpss <- ur.kpss(series, type = "mu", lags = "short")
+  
+  data.frame(
+    ADF_Statistic = adf@teststat[1], # τ statistic
+    ADF_CV_1pct = adf@cval[1, "1pct"],
+    ADF_CV_5pct = adf@cval[1, "5pct"],
+    ADF_CV_10pct = adf@cval[1, "10pct"],
+    KPSS_Statistic = kpss@teststat,
+    KPSS_CV_1pct = kpss@cval["1pct"],
+    KPSS_CV_5pct = kpss@cval["5pct"],
+    KPSS_CV_10pct = kpss@cval["10pct"]
+  )
+}
+
+price_stationarity_urca <- data.frame()
+
+for (int in intervals) {
+  agg <- quote_data_all %>%
+    mutate(interval_time = floor_date(timestamp, unit = int)) %>%
+    group_by(interval_time) %>%
+    summarise(mid_price = mean(mid_price, na.rm = TRUE), .groups = "drop")
+  
+  dpk <- diff(agg$mid_price)
+  
+  test_results <- perform_stationarity_urca(dpk)
+  test_results$Interval <- int
+  
+  price_stationarity_urca <- bind_rows(price_stationarity_urca, test_results)
+}
+
+price_stationarity_urca <- price_stationarity_urca %>%
+  select(Interval, everything())
+
+kable(price_stationarity_urca, digits = 6,
+      caption = "ADF and KPSS Test Results for ΔPₖ (URCA package)")
+
+```
 
 # 5.2  Order flow imbalance (OFI)
 
@@ -630,6 +680,7 @@ ggplot(ofi_vs_price_1m, aes(x = OFI, y = mid_price_change)) +
 
 
 ```
+
 
 
 
