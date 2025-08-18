@@ -397,49 +397,80 @@ p1 / p2 / p3
 ### Dickey-Fuller and KPSS test of stationarity for Price series 
 ```{r}
 #To examine stationarity of the differenced price series, augmented Dickey–Fuller (ADF) and KPSS tests are conducted or all variants of k in ΔPk variable. The tests confirm that price series are stationary  for every sampling period k at 1% significance level.
-
-library(tseries)
 library(dplyr)
-library(knitr)
 library(lubridate)
+library(urca)
+library(knitr)
 
-intervals <- c("1 sec", "10 sec", "5 min", "10 min", "1 hour")
+intervals <- c("1 sec", "10 sec","1 min", "5 min", "10 min", "1 hour")
 
-perform_stationarity_tests <- function(series) {
-  adf_result <- adf.test(series, alternative = "stationary")
-  kpss_result <- kpss.test(series, null = "Level")
+perform_stationarity_urca <- function(series) {
+  series <- as.numeric(series)
+  series <- series[is.finite(series)]
+  
+  if (length(series) < 10) {
+    return(data.frame(
+      ADF_Statistic = NA_real_, ADF_CV_1pct = NA_real_,
+      KPSS_Statistic = NA_real_, KPSS_CV_1pct = NA_real_
+    ))
+  }
+
+  ## ADF test (no constant/trend, since differenced series)
+  adf <- ur.df(series, type = "none", lags = 1)
+  adf_stat <- as.numeric(adf@teststat[1])
+  adf_cv1  <- as.numeric(adf@cval[1, "1pct"])
+
+  ## KPSS test (level stationarity)
+  kpss <- ur.kpss(series, type = "mu", lags = "short")
+  kpss_stat <- as.numeric(kpss@teststat)
+  
+  #########################
+  
+  ## robust 1% CV extraction (name may vary by build)
+  kpss_cv <- kpss@cval
+  kpss_cv1 <- if (!is.null(names(kpss_cv)) && "1pct" %in% names(kpss_cv)) {
+    as.numeric(kpss_cv[["1pct"]])
+  } else if (!is.null(colnames(kpss_cv)) && "1pct" %in% colnames(kpss_cv)) {
+    as.numeric(kpss_cv[1, "1pct"])
+  } else {
+    as.numeric(kpss_cv[length(kpss_cv)])  # last entry is 1% in urca
+  }
+  
+  ###########################
+
   data.frame(
-    ADF_Statistic = adf_result$statistic,
-    ADF_p_value = adf_result$p.value,
-    KPSS_Statistic = kpss_result$statistic,
-    KPSS_p_value = kpss_result$p.value
+    ADF_Statistic  = adf_stat,
+    ADF_CV_1pct    = adf_cv1,
+    KPSS_Statistic = kpss_stat,
+    KPSS_CV_1pct   = kpss_cv1
   )
 }
 
-price_stationarity_results <- data.frame()
+price_stationarity_urca <- data.frame()
 
 for (int in intervals) {
-  # Aggregate mid_price by interval
   agg <- quote_data_all %>%
     mutate(interval_time = floor_date(timestamp, unit = int)) %>%
     group_by(interval_time) %>%
     summarise(mid_price = mean(mid_price, na.rm = TRUE), .groups = "drop")
   
-  # Calculate differenced price series ΔPₖ
   dpk <- diff(agg$mid_price)
   
-  # Run tests
-  test_results <- perform_stationarity_tests(dpk)
+  test_results <- perform_stationarity_urca(dpk)
   test_results$Interval <- int
   
-  price_stationarity_results <- bind_rows(price_stationarity_results, test_results)
+  price_stationarity_urca <- bind_rows(price_stationarity_urca, test_results)
 }
 
-price_stationarity_results <- price_stationarity_results %>%
+price_stationarity_urca <- price_stationarity_urca %>%
   select(Interval, everything())
 
-kable(price_stationarity_results, digits = 4,
-      caption = "ADF and KPSS Test Results for ΔPₖ at Different Sampling Periods")
+kable(price_stationarity_urca, digits = 6,
+      caption = "ADF and KPSS (1% critical values) for ΔPₖ (URCA)")
+
+####
+
+
 
 
 ```
@@ -452,7 +483,7 @@ library(dplyr)
 library(lubridate)
 library(knitr)
 
-intervals <- c("1 sec", "10 sec", "5 min", "10 min", "1 hour")
+intervals <- c("1 sec", "10 sec","1 min", "5 min", "10 min", "1 hour")
 
 perform_stationarity_urca <- function(series) {
   # ADF test (trend = "none" because we're testing stationary diff series)
@@ -1002,3 +1033,7 @@ for (int in intervals) {
   print(ols_results)
 }
 ```
+
+###### Extra
+
+
