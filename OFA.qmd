@@ -18,6 +18,7 @@ library(knitr) # display tables
 library(data.table)
 library(lubridate)
 library(urca)
+library(patchwork)
 ```
 
 
@@ -185,7 +186,7 @@ ggplot(quote_data_day, aes(x = timestamp, y = mid_price, color = "midprice")) +
   ) +
   labs(
     title = "",
-    x = "", y = "Mid-Price (USD)",
+    x = "", y = "Mid-price ($)",
     color = NULL
   ) +
   theme(
@@ -237,7 +238,7 @@ ggplot(quote_data_day, aes(x = timestamp, y = mid_price_change, color = "dmidpri
   ) +
   labs(
     title = "",
-    x = "", y = "Mid-Price change (USD)",
+    x = "", y = bquote(Delta ~ "Mid-price ($)"),
     color = NULL
   ) +
   theme(
@@ -290,7 +291,7 @@ ggplot(quote_data_day, aes(x = timestamp, y = rolling_volatility, color = "vol")
   ) +
   labs(
     title = "",
-    x = "", y = "Std. dev. of Mid-Price change",
+    x = "", y = "Rolling volatility",
     color = NULL
   ) +
   theme(
@@ -312,11 +313,8 @@ ggplot(quote_data_day, aes(x = timestamp, y = rolling_volatility, color = "vol")
 
 
 
-### Prices below each other
+### Figure 1: Plots vertically stacked
 ```{r}
-library(ggplot2)
-library(patchwork)
-
 # Define common breaks and labels
 start_time <- as.POSIXct("2017-10-15 03:00:00", tz = "UTC")
 end_time   <- as.POSIXct("2017-10-15 21:00:00", tz = "UTC")
@@ -328,17 +326,20 @@ p1 <- ggplot(quote_data_day, aes(x = timestamp, y = mid_price, color = "midprice
   geom_line() +
   scale_color_manual(values = c("midprice" = "blue")) +
   scale_x_datetime(breaks = breaks_seq, labels = NULL) +
-  labs(x = NULL, y = "Mid-Price (USD)", color = NULL) +
+  labs(x = NULL, y = "Mid-price ($)", color = NULL) +
   theme(
     axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
+    axis.title.y = element_text(size = 10),   # y-axis title
     panel.grid.major = element_line(color = "gray80"),
     panel.grid.minor = element_blank(),
     panel.background = element_blank(),
     panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.3),
     legend.position = c(1, 1),
     legend.justification = c(1, 1),
-    legend.background = element_rect(fill = "white", color = "black")
+    legend.background = element_rect(fill = "white", color="black"),
+    legend.text  = element_text(size = 8),    # legend labels
+  legend.title = element_text(size = 9)     # legend title (if present)
   )
 
 # --- Plot 2: ΔMid-Price ---
@@ -348,19 +349,22 @@ p2 <- ggplot(quote_data_day, aes(x = timestamp, y = mid_price_change, color = "d
   scale_x_datetime(breaks = breaks_seq, labels = NULL) +
   labs(
     x = NULL,
-    y = bquote(delta ~ " Mid-Price change (USD)"),  # Greek small delta
+    y = bquote(Delta ~ "Mid-price ($)"),  # Greek small delta
     color = NULL
   ) +
   theme(
     axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
+    axis.title.y = element_text(size = 10),   # y-axis title
     panel.grid.major = element_line(color = "gray80"),
     panel.grid.minor = element_blank(),
     panel.background = element_blank(),
     panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.3),
     legend.position = c(1, 1),
     legend.justification = c(1, 1),
-    legend.background = element_rect(fill = "white", color = "black")
+    legend.background = element_rect(fill = "white", color = "black"),
+    legend.text  = element_text(size = 8),    # legend labels
+  legend.title = element_text(size = 9)     # legend title (if present)
   )
 
 # --- Plot 3: Rolling Volatility ---
@@ -368,16 +372,19 @@ p3 <- ggplot(quote_data_day, aes(x = timestamp, y = rolling_volatility, color = 
   geom_line() +
   scale_color_manual(values = c("vol" = "darkgreen")) +
   scale_x_datetime(breaks = breaks_seq, labels = labels_seq) +
-  labs(x = "Time", y = "Std. dev. of Mid-Price change", color = NULL) +
+  labs(x = "", y = "Rolling volatility", color = NULL) +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title.y = element_text(size = 10),   # y-axis title
     panel.grid.major = element_line(color = "gray80"),
     panel.grid.minor = element_blank(),
     panel.background = element_blank(),
     panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.3),
     legend.position = c(1, 1),
     legend.justification = c(1, 1),
-    legend.background = element_rect(fill = "white", color = "black")
+    legend.background = element_rect(fill = "white", color = "black"),
+    legend.text  = element_text(size = 8),    # legend labels
+  legend.title = element_text(size = 9)     # legend title (if present)
   )
 
 # --- Combine vertically ---
@@ -489,6 +496,7 @@ kable(price_stationarity_urca, digits = 6,
       caption = "ADF and KPSS Test Results for ΔPₖ (URCA package)")
 
 ```
+
 
 
 # 5.2  Order flow imbalance (OFI)
