@@ -1,0 +1,63 @@
+---
+title: "Data Extraction-Replication-Quote and Trade (1st-23rd Oct 2017)"
+format: html
+---
+
+# Level I Quote data
+```{r}
+# function to download and filter a single day
+get_data <- function(date.str) {
+  url <- paste0("https://s3-eu-west-1.amazonaws.com/public.bitmex.com/data/quote/", gsub("-", "", date.str), ".csv.gz")
+  destfile <- paste0(date.str, ".csv.gz")
+  
+  download.file(url, destfile, mode = "wb") # download file
+  df <- read_csv(destfile, col_types = cols())  #read and filter by bitcoin
+  df <- filter(df, symbol == "XBTUSD")
+  return(df)
+}
+
+# date sequence
+dates <- seq(as.Date("2017-10-01"), as.Date("2017-10-23"), by = "day")
+
+# loop over dates, download, filter, and combine
+bitcoin.quotes <- bind_rows(lapply(dates, function(d) {
+  date.str <- format(d, "%Y-%m-%d")
+  message("Processing: ", date.str)
+  get_data(date.str)
+}))
+
+write_csv(bitcoin.quotes, "XBTUSD_quotes_20171001_20171023.csv")
+```
+
+# Level I Trade data
+```{r}
+# Function to download and filter a single day
+get_data <- function(date.str) {
+  options(timeout = 600)
+  url <- paste0("https://s3-eu-west-1.amazonaws.com/public.bitmex.com/data/trade/", gsub("-", "", date.str), ".csv.gz")
+  destfile <- paste0(date.str, ".csv.gz")
+  
+  # download file
+  download.file(url, destfile, mode = "wb")
+  
+  # read and filter
+  df <- read_csv(destfile, col_types = cols())  
+  df <- filter(df, symbol == "XBTUSD")
+  
+  return(df)
+}
+
+# date sequence
+dates <- seq(as.Date("2017-10-01"), as.Date("2017-10-23"), by = "day")
+
+# loop over dates, download, filter, and combine
+bitcoin.trades <- bind_rows(lapply(dates, function(d) {
+  date.str <- format(d, "%Y-%m-%d")
+  message("Processing: ", date.str)
+  get_data(date.str)
+}))
+
+write_csv(bitcoin.trades, "XBTUSD_trades_20171001_20171023.csv")
+
+```
+

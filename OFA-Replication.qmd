@@ -24,8 +24,12 @@ library(patchwork)
 
 ## Loading in data
 ```{r}
-quote_data_all<-read.csv("_raw_data/XBTUSD_quotes_20171001_20171023.csv",header = TRUE)
-trade_data_all<-read.csv("_raw_data/XBTUSD_trades_20171001_20171023.csv",header = TRUE)
+# quote_data_all<-read.csv("XBTUSD_quotes_20171001_20171023.csv",header = TRUE)
+# trade_data_all<-read.csv("XBTUSD_trades_20171001_20171023.csv",header = TRUE)
+# save(quote_data_all,trade_data_all, file = "trade_and_quote_data.RData")
+
+
+load("trade_and_quote_data.RData")
 ```
 
 ## Cleaning and formatting data 
