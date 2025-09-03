@@ -10,7 +10,7 @@ Addtionally, we extending the analysis to the February 2024 period to
 assess the generalisability of Silyantyev's findings.
 
 ## Data
-Trade and Quote data for the respective periods can be found in .csv files in the _raw_data folder.
+Trade and Quote data for the respective periods can be found in the following google drive folder https://drive.google.com/drive/folders/1lcg57o-UQn3S7LSUJV1Isf9N77JYSf2I?usp=sharing.
 
 ## Coding
 Coding was completed using RStudio 2024.09.0+375 "Cranberry Hibiscus" Release (c8fc7aee6dc218d5687553f9041c6b1e5ea268ff, 2024-09-16) for windows
