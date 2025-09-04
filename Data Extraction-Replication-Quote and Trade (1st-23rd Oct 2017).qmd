@@ -3,6 +3,14 @@ title: "Data Extraction-Replication-Quote and Trade (1st-23rd Oct 2017)"
 format: html
 ---
 
+# Required Libraries
+```{r}
+library(readr)
+library(dplyr)
+library(httr)
+library(utils)
+```
+
 # Level I Quote data
 ```{r}
 # function to download and filter a single day
