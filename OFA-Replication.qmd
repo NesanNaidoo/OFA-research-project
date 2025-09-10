@@ -27,7 +27,8 @@ library(patchwork)
 quote_data_all<-read.csv("XBTUSD_quotes_20171001_20171023.csv",header = TRUE)
 trade_data_all<-read.csv("XBTUSD_trades_20171001_20171023.csv",header = TRUE)
 # save(quote_data_all,trade_data_all, file = "trade_and_quote_data.RData")
-# load("trade_and_quote_data.RData") For REMOTE Use only as file is too big to put on github so do not commit.
+# load("trade_and_quote_data.RData") 
+# For REMOTE Use only as file is too big to put on github so do not commit.
 ```
 
 ## Cleaning and formatting data 
