@@ -1,0 +1,1271 @@
+---
+title: "Order Flow Analysis"
+author: "N.Naidoo, D. Chetty"
+format: pdf
+---
+# Setup for analysis
+
+## Required libraries
+```{r}
+library(dplyr) # pipe operator
+library(stringr) # string replace
+library(lubridate)
+library(ggplot2) #plots
+library(zoo) # resampling if needed
+library(tseries) # ADF + KPSS tests
+library(tidyr)
+library(knitr) # display tables
+library(data.table)
+library(lubridate)
+library(urca)
+library(patchwork)
+```
+
+
+## Loading in data
+```{r}
+quote_data_all<-read.csv("XBTUSD_quotes_20241001_20241031.csv",header = TRUE)
+trade_data_all<-read.csv("XBTUSD_trades_20241001_20241031.csv",header = TRUE)
+# save(quote_data_all,trade_data_all, file = "trade_and_quote_data.RData")
+# load("trade_and_quote_data.RData") For REMOTE Use only as file is too big to put on github so do not commit.
+```
+
+## Cleaning and formatting data 
+```{r}
+## Cleaning data so it matches data description of Silyantyev(2019)
+quote_data_all<-quote_data_all |> select(timestamp,bidPrice,bidSize,askPrice,askSize) 
+quote_data_all<-quote_data_all |> rename(bidVolume=bidSize,askVolume=askSize)
+
+## Removing D character in csv files for timestamp column so it can be parsed correctly
+quote_data_all <- quote_data_all |>
+  mutate(
+    timestamp = str_replace(timestamp, "D", " "),
+  )
+
+trade_data_all<-trade_data_all |> select(timestamp,price,size,side)
+trade_data_all<-trade_data_all |> rename(Volume=size)
+trade_data_all <- trade_data_all |>
+  mutate(
+    timestamp = str_replace(timestamp, "D", " "),
+  )
+
+```
+
+## Quote data: Additional columns - timestamp,midprice and OFI column 
+```{r}
+
+## Calculating mid price
+## Format timestamp so it can be parsed correctly,ensuring no loss of information
+quote_data_all <- quote_data_all |>
+  mutate(
+    timestamp = as.POSIXct(timestamp, format = "%Y-%m-%d %H:%M:%OS", tz = "UTC"),
+    mid_price = (bidPrice + askPrice) / 2
+  )
+
+# Calculating OFI 
+quote_data_all <- quote_data_all |>
+  arrange(timestamp) |>
+  mutate(
+    prev_bidPrice = lag(bidPrice),
+    prev_bidVolume = lag(bidVolume),
+    prev_askPrice = lag(askPrice),
+    prev_askVolume = lag(askVolume),
+
+    bid_geq = bidPrice >= prev_bidPrice,
+    bid_leq = bidPrice <= prev_bidPrice,
+    ask_geq = askPrice >= prev_askPrice,
+    ask_leq = askPrice <= prev_askPrice,
+
+    OFI = 0
+  ) |>
+  mutate(
+    OFI = OFI +
+      if_else(bid_geq, bidVolume, 0) -
+      if_else(bid_leq, prev_bidVolume, 0) +
+      if_else(ask_geq, prev_askVolume, 0) -
+      if_else(ask_leq, askVolume, 0)
+  )
+
+```
+
+
+## Trade data: Additional columns- timestamp,signed_volume 
+```{r}
+#Format trade data for tfi
+trade_data_all <- trade_data_all  |> 
+  mutate(
+    timestamp = as.POSIXct(timestamp, format = "%Y-%m-%d %H:%M:%OS", tz = "UTC"),
+    signed_volume = if_else(side == "Buy", Volume, -Volume) 
+  )
+
+
+```
+
+## Functions for OFI vs Mid-price and TFI vs Mid-price scatter plots
+```{r}
+# Function to Aggregate to Intervals
+# Resample quotes to get mid-price change and OFI per interval
+
+aggregate_ofi <- function(df, interval = "10 secs", tick_size = 0.1) {
+  df |>
+    mutate(interval_time = floor_date(timestamp, unit = interval)) |>
+    group_by(interval_time) |>
+    summarise(
+      mid_price_start = first(mid_price),
+      mid_price_end = last(mid_price),
+      OFI = sum(OFI, na.rm = TRUE)
+    ) |>
+    mutate(mid_price_change = (mid_price_end - lag(mid_price_end)) / tick_size) |>
+    drop_na()
+}
+
+# Resample trades to get TFI per interval
+aggregate_tfi <- function(trades, quotes, interval = "10 secs", tick_size = 0.1) {
+  tfi <- trades |>
+    mutate(interval_time = floor_date(timestamp, unit = interval)) |>
+    group_by(interval_time) |>
+    summarise(TFI = sum(signed_volume, na.rm = TRUE))
+
+  mid <- quotes |>
+    mutate(interval_time = floor_date(timestamp, unit = interval)) |>
+    group_by(interval_time) |>
+    summarise(mid_price = last(mid_price)) |>
+    mutate(mid_price_change = (mid_price - lag(mid_price)) / tick_size)
+
+  inner_join(mid, tfi, by = "interval_time") |> drop_na()
+}
+
+```
+
+
+## Function for OFI and TFI Regression Analysis
+```{r}
+# function to run lm an extraxt relevant stats
+run_ols <- function(df, xvar, yvar) {
+  formula <- as.formula(paste(yvar, "~", xvar))
+  model <- lm(formula, data = df)
+  s <- summary(model)
+  c(
+    alpha = s$coefficients[1, 1],
+    beta = s$coefficients[2, 1],
+    t_beta = s$coefficients[2, 3],
+    r2 = s$r.squared,
+    sig = (1 - s$coefficients[2, 4]) * 100
+  )
+}
+```
+
+
+
+# 5.1  Statistical properties
+## 5.1.1 Prices
+
+### Figure 1: Mid-price over time (Price chart)
+```{r}
+#| fig-width: 9
+#| fig-height: 3
+# Mid-price = (Bid price + Ask price) / 2
+# Plot mid-price over time for the selected day.
+# 15th October 2024
+# Prepare mid-price data for 15 Oct 2024
+quote_data_day <- quote_data_all |>
+  mutate(timestamp = ymd_hms(timestamp, tz = "UTC")) |>
+  filter(as_date(timestamp) == as_date("2024-10-15")) |>
+  mutate(mid_price = (bidPrice + askPrice) / 2)
+
+start_time <- as.POSIXct("2024-10-15 03:00:00", tz = "UTC")
+end_time   <- as.POSIXct("2024-10-15 21:00:00", tz = "UTC")
+breaks_seq <- seq(from = start_time, to = end_time, by = "3 hours")
+
+# XBTUSD Mid-Price Series (15 Oct 2024)
+ggplot(quote_data_day, aes(x = timestamp, y = mid_price, color = "midprice")) +
+  geom_line() +
+  scale_color_manual(values = c("midprice" = "blue")) +
+  scale_x_datetime(
+    breaks = breaks_seq,
+    labels = format(breaks_seq, "%m.%d.%H", tz = "UTC"),
+    timezone = "UTC"
+  ) +
+  labs(
+    title = "",
+    x = "", y = "Mid-price ($)",
+    color = NULL
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+     axis.title.x = element_text(margin = margin(t = 10)),
+  axis.title.y = element_text(margin = margin(r = 10)),  
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
+    legend.position = c(1, 1),
+    legend.justification = c(1, 1),
+    legend.background = element_rect(fill = "white", color = "black"),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.3)
+  )
+
+
+# Mid-price plot: shows the price movements over the trading day
+
+```
+
+### Figure 1: Change in Mid-price over time 
+```{r}
+#| fig-width: 9
+#| fig-height: 3
+# Mid-price change = current mid-price − previous mid-price.
+# This gives tick-to-tick price movements.
+# Plot the differenced series over time
+# Ensure timestamps are in UTC
+quote_data_day$timestamp <- as.POSIXct(quote_data_day$timestamp, tz = "UTC")
+
+# Calculate tick-to-tick mid-price change
+quote_data_day <- quote_data_day |>
+  arrange(timestamp) |>
+  mutate(mid_price_change = c(NA, diff(mid_price)))
+
+# Define 3-hour breaks in UTC
+start_time <- as.POSIXct("2024-10-15 03:00:00", tz = "UTC")
+end_time   <- as.POSIXct("2024-10-15 21:00:00", tz = "UTC")
+breaks_seq <- seq(from = start_time, to = end_time, by = "3 hours")
+
+# Plot # Tick-to-Tick Mid-Price Change (15 Oct 2024)
+ggplot(quote_data_day, aes(x = timestamp, y = mid_price_change, color = "dmidprice")) +
+  geom_line() +
+  scale_color_manual(values = c("dmidprice" = "orange")) +
+  scale_x_datetime(
+    breaks = breaks_seq,
+    labels = format(breaks_seq, "%m.%d.%H", tz = "UTC"),
+    timezone = "UTC"
+  ) +
+  labs(
+    title = "",
+    x = "", y = bquote(Delta ~ "Mid-price ($)"),
+    color = NULL
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title.x = element_text(margin = margin(t = 10)),
+  axis.title.y = element_text(margin = margin(r = 10)),  
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
+    legend.position = c(1, 1),
+    legend.justification = c(1, 1),
+    legend.background = element_rect(fill = "white", color = "black"),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.3)
+  )
+
+```
+
+### Figure 1: Rolling volatility of mid-price changes 
+```{r}
+#| fig-width: 9
+#| fig-height: 3
+# Proxy for volatility: moving standard deviation of mid-price changes.
+# Rolling window: 1000 ticks, as per the paper.
+
+# Ensure timestamps are in UTC
+quote_data_day$timestamp <- as.POSIXct(quote_data_day$timestamp, tz = "UTC")
+
+# Rolling volatility
+quote_data_day$rolling_volatility <- rollapply(
+  quote_data_day$mid_price_change,
+  width = 1000,
+  FUN = sd,
+  fill = NA,
+  align = "right"
+)
+
+# Breaks with UTC
+start_time <- as.POSIXct("2024-10-15 03:00:00", tz = "UTC")
+end_time   <- as.POSIXct("2024-10-15 21:00:00", tz = "UTC")
+breaks_seq <- seq(from = start_time, to = end_time, by = "3 hours")
+
+# Plot # Rolling Volatility (1000-tick window)
+ggplot(quote_data_day, aes(x = timestamp, y = rolling_volatility, color = "vol")) +
+  geom_line() +
+  scale_color_manual(values = c("vol" = "darkgreen")) +
+  scale_x_datetime(
+    breaks = breaks_seq,
+    labels = format(breaks_seq, "%m.%d.%H", tz = "UTC"),
+    timezone = "UTC"
+  ) +
+  labs(
+    title = "",
+    x = "", y = "Rolling volatility",
+    color = NULL
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title.x = element_text(margin = margin(t = 10)),
+  axis.title.y = element_text(margin = margin(r = 10)),  
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
+    legend.position = c(1, 1),
+    legend.justification = c(1, 1),
+    legend.background = element_rect(fill = "white", color = "black"),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.3)
+  )
+
+# Rolling volatility plot: shows estimated volatility over the day
+
+```
+
+
+
+### Figure 1: Plots vertically stacked
+```{r}
+library(grid)
+# Define common breaks and labels
+start_time <- as.POSIXct("2024-10-15 03:00:00", tz = "UTC")
+end_time   <- as.POSIXct("2024-10-15 21:00:00", tz = "UTC")
+breaks_seq <- seq(from = start_time, to = end_time, by = "3 hours")
+labels_seq <- format(breaks_seq, "%m.%d.%H", tz = "UTC")
+
+# --- Plot 1: Mid-Price ---
+p1 <- ggplot(quote_data_day, aes(x = timestamp, y = mid_price, color = "midprice")) +
+  geom_line() +
+  scale_color_manual(values = c("midprice" = "blue")) +
+  scale_x_datetime(breaks = breaks_seq, labels = NULL) +
+  labs(x = NULL, y = "Mid-price ($)", color = NULL) +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.y = element_text(size = 10),   # y-axis title
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.3),
+    legend.position = c(1, 1),
+    legend.justification = c(1, 1),
+    legend.background = element_rect(fill = "white", color="black"),
+    legend.text  = element_text(size = 8),    # legend labels
+  legend.title = element_text(size = 8)  ,   # legend title (if present)
+  legend.key.size = unit(0.3, "lines"),
+  legend.spacing.y = unit(0.2, "lines"),
+  legend.margin = margin(3, 3, 3, 3)
+  )
+
+# --- Plot 2: ΔMid-Price ---
+p2 <- ggplot(quote_data_day, aes(x = timestamp, y = mid_price_change, color = "dmidprice")) +
+  geom_line() +
+  scale_color_manual(values = c("dmidprice" = "orange")) +
+  scale_x_datetime(breaks = breaks_seq, labels = NULL) +
+  labs(
+    x = NULL,
+    y = bquote(Delta ~ "Mid-price ($)"),  # Greek small delta
+    color = NULL
+  ) +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.y = element_text(size = 10),   # y-axis title
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.3),
+    legend.position = c(1, 1),
+    legend.justification = c(1, 1),
+    legend.background = element_rect(fill = "white", color = "black"),
+    legend.text  = element_text(size = 8),    # legend labels
+  legend.title = element_text(size = 8) ,
+   legend.key.size = unit(0.3, "lines"),
+  legend.spacing.y = unit(0.2, "lines"),
+  legend.margin = margin(3, 3, 3, 3)# legend title (if present)
+  )
+
+# --- Plot 3: Rolling Volatility ---
+p3 <- ggplot(quote_data_day, aes(x = timestamp, y = rolling_volatility, color = "vol")) +
+  geom_line() +
+  scale_color_manual(values = c("vol" = "darkgreen")) +
+  scale_x_datetime(breaks = breaks_seq, labels = labels_seq) +
+  labs(x = "", y = "Rolling volatility", color = NULL) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title.y = element_text(size = 10),   # y-axis title
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.3),
+    legend.position = c(1, 1),
+    legend.justification = c(1, 1),
+    legend.background = element_rect(fill = "white", color = "black"),
+    legend.text  = element_text(size = 8),    # legend labels
+  legend.title = element_text(size = 8)  ,
+   legend.key.size = unit(0.3, "lines"),
+  legend.spacing.y = unit(0.2, "lines"),
+  legend.margin = margin(3, 3, 3, 3)# legend title (if present)
+  )
+
+# --- Combine vertically ---
+p1 / p2 / p3
+
+
+```
+
+
+### Dickey-Fuller and KPSS test of stationarity for Price series 
+```{r}
+#To examine stationarity of the differenced price series, augmented Dickey–Fuller (ADF) and KPSS tests are conducted or all variants of k in ΔPk variable. The tests confirm that price series are stationary  for every sampling period k at 1% significance level.
+library(dplyr)
+library(lubridate)
+library(urca)
+library(knitr)
+
+intervals <- c("1 sec", "10 sec","1 min", "5 min", "10 min", "1 hour")
+
+perform_stationarity_urca <- function(series) {
+  series <- as.numeric(series)
+  series <- series[is.finite(series)]
+  
+  if (length(series) < 10) {
+    return(data.frame(
+      ADF_Statistic = NA_real_, ADF_CV_1pct = NA_real_,
+      KPSS_Statistic = NA_real_, KPSS_CV_1pct = NA_real_
+    ))
+  }
+
+  ## ADF test (no constant/trend, since differenced series)
+  adf <- ur.df(series, type = "none", lags = 1)
+  adf_stat <- as.numeric(adf@teststat[1])
+  adf_cv1  <- as.numeric(adf@cval[1, "1pct"])
+
+  ## KPSS test (level stationarity)
+  kpss <- ur.kpss(series, type = "mu", lags = "short")
+  kpss_stat <- as.numeric(kpss@teststat)
+  
+  #########################
+  
+  ## robust 1% CV extraction (name may vary by build)
+  kpss_cv <- kpss@cval
+  kpss_cv1 <- if (!is.null(names(kpss_cv)) && "1pct" %in% names(kpss_cv)) {
+    as.numeric(kpss_cv[["1pct"]])
+  } else if (!is.null(colnames(kpss_cv)) && "1pct" %in% colnames(kpss_cv)) {
+    as.numeric(kpss_cv[1, "1pct"])
+  } else {
+    as.numeric(kpss_cv[length(kpss_cv)])  # last entry is 1% in urca
+  }
+  
+  ###########################
+
+  data.frame(
+    ADF_Statistic  = adf_stat,
+    ADF_CV_1pct    = adf_cv1,
+    KPSS_Statistic = kpss_stat,
+    KPSS_CV_1pct   = kpss_cv1
+  )
+}
+
+price_stationarity_urca <- data.frame()
+
+for (int in intervals) {
+  agg <- quote_data_all %>%
+    mutate(interval_time = floor_date(timestamp, unit = int)) %>%
+    group_by(interval_time) %>%
+    summarise(mid_price = mean(mid_price, na.rm = TRUE), .groups = "drop")
+  
+  dpk <- diff(agg$mid_price)
+  
+  test_results <- perform_stationarity_urca(dpk)
+  test_results$Interval <- int
+  
+  price_stationarity_urca <- bind_rows(price_stationarity_urca, test_results)
+}
+
+price_stationarity_urca <- price_stationarity_urca %>%
+  select(Interval, everything())
+
+kable(price_stationarity_urca, digits = 6,
+      caption = "ADF and KPSS (1% critical values) for ΔPₖ (URCA)")
+
+####
+
+
+
+
+```
+
+
+
+# 5.2  Order flow imbalance (OFI)
+
+## Table 1: XBTUSD 1-Second Arrival Rate Statistics
+```{r}
+
+arrival_rates <- quote_data_all |>
+  mutate(
+    timestamp = as.POSIXct(timestamp, format = "%Y-%m-%d %H:%M:%OS", tz = "UTC"),
+    second_bucket = floor_date(timestamp, unit = "1 min")
+  ) |>
+  count(second_bucket, name = "updates_per_minute")
+
+summary_table1 <- arrival_rates |>
+  summarise(
+    Mean = mean(updates_per_minute),
+    SD = sd(updates_per_minute),
+    Min = min(updates_per_minute),
+    `25%` = quantile(updates_per_minute, 0.25),
+    `50%` = median(updates_per_minute),
+    `75%` = quantile(updates_per_minute, 0.75),
+    Max = max(updates_per_minute)
+  )
+
+print(summary_table1)
+
+
+
+
+
+```
+
+## Figure 2: ACF of 10-Second Arrival Counts
+Count the number of quote updates per 10-second bucket.
+Compute and plot the autocorrelation function (ACF) of these counts.
+```{r}
+#| fig-width: 5
+#| fig-height: 5
+# Aggregate updates into 10-second buckets
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+
+# Count quote updates in 10-second intervals
+arrival_10s <- quote_data_all |>
+  mutate(ten_sec_bucket = floor_date(timestamp, unit = "10 seconds")) |>
+  count(ten_sec_bucket, name = "updates_per_10s")
+
+#Compute ACF for lags 0–9
+acf_result <- acf(arrival_10s$updates_per_10s, lag.max = 9, plot = TRUE)
+
+
+acf_df <- data.frame(
+  Lag = as.numeric(acf_result$lag),
+  ACF = as.numeric(acf_result$acf)
+)
+
+# Confidence interval
+#N <- length(arrival_10s$updates_per_10s)
+conf_interval <- 0.05 #recheck
+
+# Step 5: Plot
+ggplot(acf_df, aes(x = Lag, y = ACF)) +
+  geom_bar(stat = "identity", fill = "steelblue", width = 0.4) +
+  geom_hline(yintercept = c(conf_interval, -conf_interval), linetype = "dashed", color = "red",size=0.7) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black") +
+  scale_x_continuous(breaks = 0:9, limits = c(-0.5, 9.5)) +
+  scale_y_continuous(
+    breaks = seq(0, 1, by = 0.1),
+    limits = c(-0.1, 1.05),
+    expand = c(0, 0)
+  ) +
+  labs(
+    title = "Update Counts ACF",
+    x = "Lag",
+    y = "Autocorrelation"
+  ) +
+  theme_minimal()+
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),,
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)   # Hide minor grid lines
+  )
+
+```
+
+
+## Table 2: ADF Test on OFI Series
+Perform the Augmented Dickey-Fuller (ADF) test on the OFI time series.
+Report: ADF statistic, p-value, Critical values
+```{r}
+# Step 1: Aggregate OFI into 10s intervals
+ofi_10s <- quote_data_all |>
+  mutate(interval_time = floor_date(timestamp, unit = "10 seconds")) |>
+  group_by(interval_time) |>
+  summarise(OFI = sum(OFI, na.rm = TRUE)) |>
+  ungroup()
+
+ofi_series_10s <- na.omit(ofi_10s$OFI)
+
+# ADF test using urca
+# Choose model = "drift" for constant only, or "trend" for constant + trend
+adf_urca <- ur.df(ofi_series_10s, type = "drift", selectlags = "AIC")
+
+# ADF test using ur.df with drift (constant) only
+adf_test <- ur.df(ofi_series_10s, type = "drift", selectlags = "AIC")
+
+# Extract the test statistic
+adf_stat <- adf_test@teststat["statistic", "tau2"]
+
+# Manually define critical values (based on ur.df output)
+crit_vals <- adf_test@cval["tau2", ]
+
+# Display in paper-like format
+cat("Table 2: OFI Augmented Dickey–Fuller Test Results\n")
+cat("-------------------------------------------------\n")
+cat(sprintf("ADF statistic   : %.6f\n", adf_stat))
+cat(sprintf("p value         : < 0.0000001\n"))  # Conservative display for small p-values
+cat("Critical values :\n")
+cat(sprintf(" 1%%             : %.3f\n", crit_vals["1pct"]))
+cat(sprintf(" 5%%             : %.3f\n", crit_vals["5pct"]))
+cat(sprintf("10%%             : %.3f\n", crit_vals["10pct"]))
+
+
+```
+
+## ADF and KPSS all intervals
+```{r}
+library(dplyr)
+library(lubridate)
+library(urca)
+library(knitr)
+
+# Define intervals
+intervals <- c("1 sec", "10 sec", "1 min", "5 min", "10 min", "1 hour")
+
+# Custom test function using urca with drift for ADF
+perform_ofi_tfi_tests <- function(series) {
+  series <- as.numeric(series)
+  series <- series[is.finite(series)]
+  
+  if (length(series) < 10) {
+    return(data.frame(
+      ADF_Statistic = NA_real_, ADF_CV_1pct = NA_real_,
+      KPSS_Statistic = NA_real_, KPSS_CV_1pct = NA_real_
+    ))
+  }
+
+  ## ADF test with drift
+  adf <- ur.df(series, type = "drift", lags = 1)
+  adf_stat <- as.numeric(adf@teststat[1])
+  adf_cv1  <- as.numeric(adf@cval[1, "1pct"])
+
+  ## KPSS test (level stationarity)
+  kpss <- ur.kpss(series, type = "mu", lags = "short")
+  kpss_stat <- as.numeric(kpss@teststat)
+  
+  ## Robust 1% CV extraction
+  kpss_cv <- kpss@cval
+  kpss_cv1 <- if (!is.null(names(kpss_cv)) && "1pct" %in% names(kpss_cv)) {
+    as.numeric(kpss_cv[["1pct"]])
+  } else if (!is.null(colnames(kpss_cv)) && "1pct" %in% colnames(kpss_cv)) {
+    as.numeric(kpss_cv[1, "1pct"])
+  } else {
+    as.numeric(kpss_cv[length(kpss_cv)])  # fallback
+  }
+
+  data.frame(
+    ADF_Statistic  = adf_stat,
+    ADF_CV_1pct    = adf_cv1,
+    KPSS_Statistic = kpss_stat,
+    KPSS_CV_1pct   = kpss_cv1
+  )
+}
+
+```
+
+# OFI
+```{r}
+ofi_stationarity_urca <- data.frame()
+
+for (int in intervals) {
+  ofi_agg <- aggregate_ofi(quote_data_all, interval = int)
+  
+  test_results <- perform_ofi_tfi_tests(ofi_agg$OFI)
+  test_results$Interval <- int
+  
+  ofi_stationarity_urca <- bind_rows(ofi_stationarity_urca, test_results)
+}
+
+ofi_stationarity_urca <- ofi_stationarity_urca %>%
+  select(Interval, everything())
+
+kable(ofi_stationarity_urca, digits = 5,
+      caption = "ADF and KPSS Tests for OFI (URCA, 1% CV)")
+
+```
+
+
+# TFI
+```{r}
+tfi_stationarity_urca <- data.frame()
+
+for (int in intervals) {
+  tfi_agg <- aggregate_tfi(trade_data_all, quote_data_all, interval = int)
+  
+  test_results <- perform_ofi_tfi_tests(tfi_agg$TFI)
+  test_results$Interval <- int
+  
+  tfi_stationarity_urca <- bind_rows(tfi_stationarity_urca, test_results)
+}
+
+tfi_stationarity_urca <- tfi_stationarity_urca %>%
+  select(Interval, everything())
+
+kable(tfi_stationarity_urca, digits = 5,
+      caption = "ADF and KPSS Tests for TFI (URCA, 1% CV)")
+
+```
+
+## Figure 3: XBTUSD 10-s OFI ACF
+```{r}
+#| fig-width: 5
+#| fig-height: 5
+# Step 1: Aggregate OFI into 10-second intervals (signed sums)
+# Aggregate into 10-second buckets
+ofi_10s <- quote_data_all |>
+  mutate(interval_time = floor_date(timestamp, unit = "10 sec")) |>
+  group_by(interval_time) |>
+  summarise(OFI = sum(OFI, na.rm = TRUE)) |>
+  ungroup()
+
+# Compute ACF
+acf_ofi_result <- acf(ofi_10s$OFI, lag.max = 9, plot = FALSE)
+
+# Format for plot
+acf_ofi_df <- data.frame(
+  Lag = as.numeric(acf_ofi_result$lag),
+  ACF = as.numeric(acf_ofi_result$acf)
+)
+
+# Confidence interval
+N_ofi <- length(ofi_10s$OFI)
+conf_bound <- 0.05
+
+# Plot
+ggplot(acf_ofi_df, aes(x = Lag, y = ACF)) +
+  geom_bar(stat = "identity", fill = "steelblue", width = 0.4) +
+  geom_hline(yintercept = c(conf_bound, -conf_bound), linetype = "dashed", color = "red",size=0.7) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black") +
+  scale_x_continuous(
+    breaks = 0:9,
+    limits = c(-0.5, 9.5)
+  ) +
+  scale_y_continuous(
+    breaks = seq(-0.1, 1, by = 0.1),
+    limits = c(-0.1, 1.05),
+    expand = c(0, 0)
+  ) +
+  labs(
+    title = "OFI 10-Second ACF", # OFI 10-Second ACF
+    x = "Lag",
+    y = "Autocorrelation"
+  ) +
+  theme_minimal()+
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)  # Hide minor grid lines
+  )
+```
+
+
+## Figure 4: XBTUSD 1-s OFI vs Mid-price change
+```{r}
+# Aggregate using your function
+ofi_vs_price_1s <- aggregate_ofi(
+  quote_data_all,
+  interval = "1 second",
+  tick_size = 0.1
+)
+
+# Plot
+ggplot(ofi_vs_price_1s, aes(x = OFI, y = mid_price_change)) +
+  geom_point(alpha = 0.5, size = 0.8, color = "steelblue") +
+  labs(
+    title = "XBTUSD 1-Second OFI",
+    x = expression(OFI~"("*10^7*")"),
+    y = "Mid-Price Change"
+  ) +
+  scale_x_continuous(
+    limits = c(-0.6e7, 0.8e7),
+    breaks = seq(-0.6e7, 0.8e7, by = 0.2e7),
+    labels = function(x) x / 1e7
+  ) +
+  theme_minimal() +
+  theme(
+    panel.ontop = TRUE,  # grid lines above points
+    panel.grid.major = element_line(color = "grey80", linewidth = 0.3),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)
+  )
+
+```
+
+## Figure 5: XBTUSD 1-min OFI vs Mid-price change
+```{r}
+#| fig-height: 5
+#| fig-width: 7
+# Use your aggregation function
+ofi_vs_price_1m <- aggregate_ofi(
+  df = quote_data_all,
+  interval = "1 minute",   # match Figure 5's granularity
+  tick_size = 0.1          # your identified tick size
+)
+
+
+# Scatter plot for 1-minute OFI
+ggplot(ofi_vs_price_1m, aes(x = OFI, y = mid_price_change)) +
+  # Points first
+  geom_point(alpha = 0.3, size = 0.8, color = "steelblue") +
+  
+  # Scales
+  scale_x_continuous(
+    limits = c(-0.5e7, 1.5e7),
+    breaks = seq(-0.5e7, 1.5e7, by = 0.5e7),
+    labels = function(x) x / 1e7
+  ) +
+  scale_y_continuous(
+    limits = c(-1250, 750),
+    breaks = seq(-1250, 750, by = 250)
+  ) +
+  
+  # Labels
+  labs(
+    title = "XBTUSD 1-Minute OFI",
+    x = expression(OFI~"("*10^7*")"),
+    y = "Mid-Price Change "
+  ) +
+  
+  # Theme with grid overlay
+  theme_minimal() +
+  theme(
+    panel.ontop = TRUE,  # This makes grid lines draw over data
+    panel.grid.major = element_line(color = "grey80", linewidth = 0.1),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)
+  )
+
+
+
+```
+
+
+
+
+
+# 5.3 Trade flow imbalance (TFI)(Wrong package)
+## ADF and KPSS stationarity tests
+```{r}
+# Define the intervals to test
+intervals <- c("1 sec", "10 sec", "5 min", "10 min", "1 hour")
+
+# Function to perform and format stationarity tests
+perform_stationarity_tests <- function(tfi_series) {
+  # ADF test (null hypothesis: series has unit root)
+  adf_result <- adf.test(tfi_series, alternative = "stationary")
+  
+  # KPSS test (null hypothesis: series is stationary)
+  kpss_result <- kpss.test(tfi_series, null = "Level")
+  
+  # Return formatted results
+  data.frame(
+    ADF_Statistic = adf_result$statistic,
+    ADF_p_value = adf_result$p.value,
+    KPSS_Statistic = kpss_result$statistic,
+    KPSS_p_value = kpss_result$p.value
+  )
+}
+
+# Initialize results dataframe
+tfi_stationarity_results <- data.frame(
+  Interval = character(),
+  ADF_Statistic = numeric(),
+  ADF_p_value = numeric(),
+  KPSS_Statistic = numeric(),
+  KPSS_p_value = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Loop through each interval and perform tests
+for (int in intervals) {
+  # Aggregate TFI for the current interval
+  tfi_data <- aggregate_tfi(trade_data_all, quote_data_all, interval = int)
+  
+  # Extract TFI series
+  tfi_series <- tfi_data$TFI
+  
+  # Perform stationarity tests
+  test_results <- perform_stationarity_tests(tfi_series)
+  
+  # Add interval information
+  test_results$Interval <- int
+  
+  # Append to results
+  tfi_stationarity_results <- rbind(tfi_stationarity_results, test_results)
+}
+
+# Reorder columns for better presentation
+tfi_stationarity_results <- tfi_stationarity_results %>%
+  select(Interval, everything())
+
+# Display results in a nice table
+kable(tfi_stationarity_results, digits = 4, 
+      caption = "ADF and KPSS Test Results for TFI at Different Intervals")
+
+#Warning: p-value smaller than printed p-valueWarning: p-value greater than printed p-valueWarning: p-value smaller than printed p-valueWarning: p-value greater than printed p-valueWarning: p-value smaller than printed p-valueWarning: p-value greater than printed p-valueWarning: p-value smaller than printed p-valueWarning: p-value greater than printed p-valueWarning: p-value smaller than printed p-valueWarning: p-value greater than printed p-value ----- proves stationarity
+```
+
+
+## Figure 6:  XBTUSD 10-s TFI ACF
+```{r}
+#| fig-width: 5
+#| fig-height: 5
+# Step 1: Aggregate TFI into 10-second intervals
+tfi_10s <- aggregate_tfi(trade_data_all, quote_data_all)
+
+# Compute ACF
+acf_tfi_result <- acf(tfi_10s$TFI, lag.max = 9, plot = FALSE)
+
+# Format for plot
+acf_tfi_df <- data.frame(
+  Lag = as.numeric(acf_tfi_result$lag),
+  ACF = as.numeric(acf_tfi_result$acf)
+)
+
+# Confidence interval (same approach as OFI plot)
+N_tfi <- length(tfi_10s$TFI)
+conf_bound <- 0.05  # Using same confidence bound as OFI plot for consistency
+
+# Plot 
+ggplot(acf_tfi_df, aes(x = Lag, y = ACF)) +
+  geom_bar(stat = "identity", fill = "steelblue", width = 0.4) +
+  geom_hline(yintercept = c(conf_bound, -conf_bound), linetype = "dashed", color = "red",size=0.7) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black") +
+  scale_x_continuous(
+    breaks = 0:9,
+    limits = c(-0.5, 9.5)
+  ) +
+  scale_y_continuous(
+    breaks = seq(-0.1, 1, by = 0.1),
+    limits = c(-0.09, 1.05),
+    expand = c(0, 0)
+  ) +
+  labs(
+    title = "TFI 10-Second ACF",
+    x = "Lag",
+    y = "Autocorrelation"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)
+  )
+```
+
+
+## Figure 7: XBTUSD 1-min TFI vs mid price change. R2 = 58.6%
+```{r}
+#| fig-width: 6
+#| fig-height: 5
+# Filter for 1-minute interval
+one_min_results <- aggregate_tfi(trade_data_all, quote_data_all, interval = "1 min") 
+
+# Run OLS regression and store results
+ols_results <- run_ols(one_min_results, "TFI", "mid_price_change")
+r_squared <- sprintf("%.1f%%", ols_results["r2"] * 100)
+
+# Store your grid line breaks
+x_breaks <- seq(-0.75e7, 0.75e7, by = 0.25e7)
+y_breaks <- seq(-1250, 750, by = 250)
+
+ggplot(one_min_results, aes(x = TFI, y = mid_price_change)) +
+  geom_point(alpha = 0.70, size = 0.8, shape = 21, color = "steelblue", fill = "steelblue") +
+  geom_vline(xintercept = x_breaks, color = "grey80", linewidth = 0.1) +
+  geom_hline(yintercept = y_breaks, color = "grey80", linewidth = 0.1) +
+  scale_y_continuous(
+    breaks = y_breaks,
+    limits = c(-1250, 800)
+  ) +
+  scale_x_continuous(
+    labels = function(x) x / 1e7,
+    breaks = x_breaks,
+    limits = c(-0.87e7, 0.89e7)
+  ) +
+  labs(
+    title = "XBTUSD 1-Minute TFI",
+    x = expression(TFI~"("*10^7*")"),
+    y = "Mid Price Change"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    panel.grid = element_blank(), # Turn off default grid
+    panel.background = element_rect(fill = "white", color = NA),
+    panel.border = element_rect(colour = "black", fill= NA, linewidth = 0.1),
+    plot.background = element_rect(fill = "white", color = NA),
+    plot.caption = element_text(hjust = 0.5, size = 9)
+  )
+
+
+
+# coord_fixed(ratio = (0.89e7 - (-0.87e7))/(800 - (-1250)))  # This makes grid squares
+
+#ggsave("XBTUSD_1min_TFI_Mid_Price_Change.png", width = 6, height = 5, dpi = 300, bg = "white")
+```
+
+
+
+# Regression analysis
+## Table 3:  Results: OFI and TFI model parameter estimation
+```{r}
+#loop over the different time aggregations
+intervals <- c("1 sec", "10 secs", "1 min", "5 mins", "10 mins", "1 hour")
+results <- data.frame()
+
+for (intv in intervals) {
+  ofi_data <- aggregate_ofi(quote_data_all, interval = intv)
+  tfi_data <- aggregate_tfi(trade_data_all, quote_data_all, interval = intv)
+
+  ofi_stats <- run_ols(ofi_data, "OFI", "mid_price_change")
+  tfi_stats <- run_ols(tfi_data, "TFI", "mid_price_change")
+
+  results <- rbind(results, data.frame(
+    interval = intv,
+    alpha_OFI = ofi_stats["alpha"],
+    beta_OFI = ofi_stats["beta"],
+    t_beta_OFI = ofi_stats["t_beta"],
+    r2_OFI = ofi_stats["r2"],
+    sig_OFI = ofi_stats["sig"],
+    alpha_TFI = tfi_stats["alpha"],
+    beta_TFI = tfi_stats["beta"],
+    t_beta_TFI = tfi_stats["t_beta"],
+    r2_TFI = tfi_stats["r2"],
+    sig_TFI = tfi_stats["sig"]
+  ))
+}
+
+print(results)
+```
+
+## Dickey-fuller and KPSS tests
+```{r}
+#Stationarity test
+adf.test(ofi_data$OFI)
+kpss.test(ofi_data$OFI, null = "Level")
+
+adf.test(tfi_data$TFI)
+kpss.test(tfi_data$TFI, null = "Level")
+
+```
+
+# Extra
+##  XBTUSD 1-hour OFI vs Mid-price change
+```{r}
+#| fig-height: 5
+#| fig-width: 7
+# Use your aggregation function
+ofi_vs_price_1m <- aggregate_ofi(
+  df = quote_data_all,
+  interval = "1 hour",   # match Figure 5's granularity
+  tick_size = 0.1          # your identified tick size
+)
+
+
+# Scatter plot for 1-hour OFI
+ggplot(ofi_vs_price_1m, aes(x = OFI, y = mid_price_change)) +
+  # Points first
+  geom_point(alpha = 1, size = 1, color = "steelblue") +
+  
+  # Scales
+  scale_x_continuous(
+    limits = c(-0.5e7, 1.5e7),
+    breaks = seq(-0.5e7, 1.5e7, by = 0.5e7),
+    labels = function(x) x / 1e7
+  ) +
+  scale_y_continuous(
+    limits = c(-1250, 750),
+    breaks = seq(-1250, 750, by = 250)
+  ) +
+  
+  # Labels
+  labs(
+    title = "XBTUSD 1-hour OFI",
+    x = expression(OFI~"("*10^7*")"),
+    y = "Mid-Price Change "
+  ) +
+  
+  # Theme with grid overlay
+  theme_minimal() +
+  theme(
+    panel.ontop = TRUE,  # This makes grid lines draw over data
+    panel.grid.major = element_line(color = "grey80", linewidth = 0.1),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)
+  )
+
+
+
+```
+
+
+##  XBTUSD 1-sec TFI vs mid price change.
+```{r}
+#| fig-width: 6
+#| fig-height: 5
+# Filter for 1-minute interval
+one_min_results <- aggregate_tfi(trade_data_all, quote_data_all, interval = "1 sec") 
+
+# Run OLS regression and store results
+ols_results <- run_ols(one_min_results, "TFI", "mid_price_change")
+r_squared <- sprintf("%.1f%%", ols_results["r2"] * 100)
+
+# Store your grid line breaks
+x_breaks <- seq(-0.75e7, 0.75e7, by = 0.25e7)
+y_breaks <- seq(-1250, 750, by = 250)
+
+ggplot(one_min_results, aes(x = TFI, y = mid_price_change)) +
+  geom_point(alpha = 0.70, size = 1, shape = 21, color = "steelblue", fill = "steelblue") +
+  geom_vline(xintercept = x_breaks, color = "grey80", linewidth = 0.1) +
+  geom_hline(yintercept = y_breaks, color = "grey80", linewidth = 0.1) +
+  scale_y_continuous(
+    breaks = y_breaks,
+    limits = c(-1250, 800)
+  ) +
+  scale_x_continuous(
+    labels = function(x) x / 1e7,
+    breaks = x_breaks,
+    limits = c(-0.87e7, 0.89e7)
+  ) +
+  labs(
+    title = "XBTUSD 1-second TFI",
+    x = expression(TFI~"("*10^7*")"),
+    y = "Mid Price Change"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    panel.grid = element_blank(), # Turn off default grid
+    panel.background = element_rect(fill = "white", color = NA),
+    panel.border = element_rect(colour = "black", fill= NA, linewidth = 0.1),
+    plot.background = element_rect(fill = "white", color = NA),
+    plot.caption = element_text(hjust = 0.5, size = 9)
+  )
+
+
+
+# coord_fixed(ratio = (0.89e7 - (-0.87e7))/(800 - (-1250)))  # This makes grid squares
+
+#ggsave("XBTUSD_1min_TFI_Mid_Price_Change.png", width = 6, height = 5, dpi = 300, bg = "white")
+```
+
+
+##  XBTUSD 1-hour TFI vs mid price change.
+```{r}
+#| fig-width: 6
+#| fig-height: 5
+# Filter for 1-minute interval
+one_min_results <- aggregate_tfi(trade_data_all, quote_data_all, interval = "1 hour") 
+
+# Run OLS regression and store results
+ols_results <- run_ols(one_min_results, "TFI", "mid_price_change")
+r_squared <- sprintf("%.1f%%", ols_results["r2"] * 100)
+
+# Store your grid line breaks
+x_breaks <- seq(-0.75e7, 0.75e7, by = 0.25e7)
+y_breaks <- seq(-1250, 750, by = 250)
+
+ggplot(one_min_results, aes(x = TFI, y = mid_price_change)) +
+  geom_point(alpha = 0.70, size = 1, shape = 21, color = "steelblue", fill = "steelblue") +
+  geom_vline(xintercept = x_breaks, color = "grey80", linewidth = 0.1) +
+  geom_hline(yintercept = y_breaks, color = "grey80", linewidth = 0.1) +
+  scale_y_continuous(
+    breaks = y_breaks,
+    limits = c(-1250, 800)
+  ) +
+  scale_x_continuous(
+    labels = function(x) x / 1e7,
+    breaks = x_breaks,
+    limits = c(-0.87e7, 0.89e7)
+  ) +
+  labs(
+    title = "XBTUSD 1-hour TFI",
+    x = expression(TFI~"("*10^7*")"),
+    y = "Mid Price Change"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    panel.grid = element_blank(), # Turn off default grid
+    panel.background = element_rect(fill = "white", color = NA),
+    panel.border = element_rect(colour = "black", fill= NA, linewidth = 0.1),
+    plot.background = element_rect(fill = "white", color = NA),
+    plot.caption = element_text(hjust = 0.5, size = 9)
+  )
+
+
+
+# coord_fixed(ratio = (0.89e7 - (-0.87e7))/(800 - (-1250)))  # This makes grid squares
+
+#ggsave("XBTUSD_1min_TFI_Mid_Price_Change.png", width = 6, height = 5, dpi = 300, bg = "white")
+```
+
+# Time Series OFI
+```{r}
+# Aggregate OFI and TFI with 10-second intervals
+ofi_data <- aggregate_ofi(quote_data_all, interval = "10 secs", tick_size = 0.1)
+library(scales)
+# Time series plot of OFI
+p1 <- ggplot(ofi_data, aes(x = interval_time, y = OFI / 1e6)) +
+  geom_line(color = "steelblue") +
+  labs(
+    title = "",
+    x = "Time",
+    y = expression("OFI ("*10^6*")")
+  ) +
+  scale_x_datetime(
+    date_breaks = "5 days",
+    date_labels = "%b %d"  # e.g., "Oct 01"
+  ) +
+  scale_y_continuous(
+    breaks = seq(-30, 40, by = 10),  # manually define tick marks
+    labels = scales::number_format(accuracy = 1)
+  ) +
+  theme_minimal()
+
+p1
+```
+
+# Time Series TFI
+```{r}
+tfi_data <- aggregate_tfi(trade_data_all, quote_data_all, interval = "10 secs", tick_size = 0.1)
+# Time series plot of TFI
+p2 <- ggplot(tfi_data, aes(x = interval_time, y = TFI / 1e6)) +
+  geom_line(color = "darkred") +
+  labs(
+    title = "",
+    x = "Time",
+    y = expression("TFI (x"*10^6*")")
+  ) +
+  scale_x_datetime(
+    date_breaks = "5 days",
+    date_labels = "%b %d"  # e.g., "Oct 01"
+  ) +
+  scale_y_continuous(labels = scales::number_format(accuracy = 1)) +
+  theme_minimal()
+p2
+```
+
