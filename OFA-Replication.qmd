@@ -1039,4 +1039,162 @@ for (int in intervals) {
 
 ###### Extra
 
+## Figure: XBTUSD 1-hour OFI vs Mid-price change
+
+```{r}
+#| fig-height: 5
+#| fig-width: 7
+# Use your aggregation function
+ofi_vs_price_1h <- aggregate_ofi(
+  df = quote_data_all,
+  interval = "1 hour",   # match Figure 5's granularity
+  tick_size = 0.1          # your identified tick size
+)
+
+
+# Scatter plot for 1-minute OFI
+ggplot(ofi_vs_price_1h, aes(x = OFI, y = mid_price_change)) +
+  # Points first
+  geom_point(alpha = 0.3, size = 0.8, color = "steelblue") +
+  
+  # Scales
+  scale_x_continuous(
+    limits = c(-0.5e7, 1.5e7),
+    breaks = seq(-0.5e7, 1.5e7, by = 0.5e7),
+    labels = function(x) x / 1e7
+  ) +
+  scale_y_continuous(
+    limits = c(-1250, 750),
+    breaks = seq(-1250, 750, by = 250)
+  ) +
+  
+  # Labels
+  labs(
+    title = "XBTUSD 1-Hour OFI",
+    x = expression(OFI~"("*10^7*")"),
+    y = "Mid-Price Change "
+  ) +
+  
+  # Theme with grid overlay
+  theme_minimal() +
+  theme(
+    panel.ontop = TRUE,  # This makes grid lines draw over data
+    panel.grid.major = element_line(color = "grey80", linewidth = 0.1),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)
+  )
+
+#ggsave("XBTUSD_1hour_OFI_Mid_Price_Change.png", width = 6, height = 5, dpi = 300, bg = "white")
+
+```
+
+## Figure: XBTUSD 1-sec TFI vs mid price change.
+
+```{r}
+#| fig-width: 6
+#| fig-height: 5
+# Filter for 1-sec interval
+one_sec_results <- aggregate_tfi(trade_data_all, quote_data_all, interval = "1 sec") 
+
+# # Run OLS regression and store results
+# ols_results <- run_ols(one_sec_results, "TFI", "mid_price_change")
+# r_squared <- sprintf("%.1f%%", ols_results["r2"] * 100)
+
+# Store your grid line breaks
+x_breaks <- seq(-0.75e7, 0.75e7, by = 0.25e7)
+y_breaks <- seq(-1250, 750, by = 250)
+
+ggplot(one_sec_results, aes(x = TFI, y = mid_price_change)) +
+  geom_point(alpha = 0.70, size = 0.8, shape = 21, color = "steelblue", fill = "steelblue") +
+  geom_vline(xintercept = x_breaks, color = "grey80", linewidth = 0.1) +
+  geom_hline(yintercept = y_breaks, color = "grey80", linewidth = 0.1) +
+  scale_y_continuous(
+    breaks = y_breaks,
+    limits = c(-1250, 800)
+  ) +
+  scale_x_continuous(
+    labels = function(x) x / 1e7,
+    breaks = x_breaks,
+    limits = c(-0.87e7, 0.89e7)
+  ) +
+  labs(
+    title = "XBTUSD 1-Second TFI",
+    x = expression(TFI~"("*10^7*")"),
+    y = "Mid Price Change"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    panel.grid = element_blank(), # Turn off default grid
+    panel.background = element_rect(fill = "white", color = NA),
+    panel.border = element_rect(colour = "black", fill= NA, linewidth = 0.1),
+    plot.background = element_rect(fill = "white", color = NA),
+    plot.caption = element_text(hjust = 0.5, size = 9)
+  )
+
+
+
+# coord_fixed(ratio = (0.89e7 - (-0.87e7))/(800 - (-1250)))  # This makes grid squares
+
+#ggsave("XBTUSD_1sec_TFI_Mid_Price_Change.png", width = 6, height = 5, dpi = 300, bg = "white")
+```
+
+## Figure: XBTUSD 1-hour TFI vs mid price change.
+
+```{r}
+#| fig-width: 6
+#| fig-height: 5
+# Filter for 1-h interval
+one_hour_results <- aggregate_tfi(trade_data_all, quote_data_all, interval = "1 hour") 
+
+# # Run OLS regression and store results
+# ols_results <- run_ols(one_hour_results, "TFI", "mid_price_change")
+# r_squared <- sprintf("%.1f%%", ols_results["r2"] * 100)
+
+# Store your grid line breaks
+x_breaks <- seq(-0.75e7, 0.75e7, by = 0.25e7)
+y_breaks <- seq(-1250, 750, by = 250)
+
+ggplot(one_hour_results, aes(x = TFI, y = mid_price_change)) +
+  geom_point(alpha = 0.70, size = 0.8, shape = 21, color = "steelblue", fill = "steelblue") +
+  geom_vline(xintercept = x_breaks, color = "grey80", linewidth = 0.1) +
+  geom_hline(yintercept = y_breaks, color = "grey80", linewidth = 0.1) +
+  scale_y_continuous(
+    breaks = y_breaks,
+    limits = c(-1250, 800)
+  ) +
+  scale_x_continuous(
+    labels = function(x) x / 1e7,
+    breaks = x_breaks,
+    limits = c(-0.87e7, 0.89e7)
+  ) +
+  labs(
+    title = "XBTUSD 1-Hour TFI",
+    x = expression(TFI~"("*10^7*")"),
+    y = "Mid Price Change"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    panel.grid = element_blank(), # Turn off default grid
+    panel.background = element_rect(fill = "white", color = NA),
+    panel.border = element_rect(colour = "black", fill= NA, linewidth = 0.1),
+    plot.background = element_rect(fill = "white", color = NA),
+    plot.caption = element_text(hjust = 0.5, size = 9)
+  )
+
+
+
+# coord_fixed(ratio = (0.89e7 - (-0.87e7))/(800 - (-1250)))  # This makes grid squares
+
+#ggsave("XBTUSD_1hour_TFI_Mid_Price_Change.png", width = 6, height = 5, dpi = 300, bg = "white")
+
+```
 

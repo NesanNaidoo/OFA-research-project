@@ -8,6 +8,7 @@ editor: visual
 # Setup for analysis
 
 ## Required libraries
+
 ```{r}
 library(dplyr) # pipe operator
 library(stringr) # string replace
@@ -23,8 +24,8 @@ library(urca)
 library(patchwork)
 ```
 
-
 ## Loading in data
+
 ```{r}
 quote_data_all<-read.csv("XBTUSD_quotes_20171001_20171023.csv",header = TRUE)
 trade_data_all<-read.csv("XBTUSD_trades_20171001_20171023.csv",header = TRUE)
@@ -33,7 +34,8 @@ trade_data_all<-read.csv("XBTUSD_trades_20171001_20171023.csv",header = TRUE)
 # For REMOTE Use only as file is too big to put on github so do not commit.
 ```
 
-## Cleaning and formatting data 
+## Cleaning and formatting data
+
 ```{r}
 ## Cleaning data so it matches data description of Silyantyev(2019)
 quote_data_all<-quote_data_all |> select(timestamp,bidPrice,bidSize,askPrice,askSize) 
@@ -54,7 +56,8 @@ trade_data_all <- trade_data_all |>
 
 ```
 
-## Quote data: Additional columns - timestamp,midprice and OFI column 
+## Quote data: Additional columns - timestamp,midprice and OFI column
+
 ```{r}
 
 ## Calculating mid price
@@ -91,8 +94,8 @@ quote_data_all <- quote_data_all |>
 
 ```
 
+## Trade data: Additional columns- timestamp,signed_volume
 
-## Trade data: Additional columns- timestamp,signed_volume 
 ```{r}
 #Format trade data for tfi
 trade_data_all <- trade_data_all  |> 
@@ -105,6 +108,7 @@ trade_data_all <- trade_data_all  |>
 ```
 
 ## Functions for OFI vs Mid-price and TFI vs Mid-price scatter plots
+
 ```{r}
 # Function to Aggregate to Intervals
 # Resample quotes to get mid-price change and OFI per interval
@@ -140,8 +144,8 @@ aggregate_tfi <- function(trades, quotes, interval = "10 secs", tick_size = 0.1)
 
 ```
 
-
 ## Function for OFI and TFI Regression Analysis
+
 ```{r}
 # function to run lm an extraxt relevant stats
 run_ols <- function(df, xvar, yvar) {
@@ -158,9 +162,8 @@ run_ols <- function(df, xvar, yvar) {
 }
 ```
 
-
-
 ## Figure: XBTUSD 1-hour OFI vs Mid-price change
+
 ```{r}
 #| fig-height: 5
 #| fig-width: 7
@@ -210,8 +213,9 @@ ggplot(ofi_vs_price_1h, aes(x = OFI, y = mid_price_change)) +
 #ggsave("XBTUSD_1hour_OFI_Mid_Price_Change.png", width = 6, height = 5, dpi = 300, bg = "white")
 
 ```
- 
- ## Figure: XBTUSD 1-sec TFI vs mid price change. 
+
+## Figure: XBTUSD 1-sec TFI vs mid price change.
+
 ```{r}
 #| fig-width: 6
 #| fig-height: 5
@@ -263,7 +267,8 @@ ggplot(one_sec_results, aes(x = TFI, y = mid_price_change)) +
 #ggsave("XBTUSD_1sec_TFI_Mid_Price_Change.png", width = 6, height = 5, dpi = 300, bg = "white")
 ```
 
-## Figure: XBTUSD 1-hour TFI vs mid price change. 
+## Figure: XBTUSD 1-hour TFI vs mid price change.
+
 ```{r}
 #| fig-width: 6
 #| fig-height: 5
