@@ -162,7 +162,7 @@ run_ols <- function(df, xvar, yvar) {
 }
 ```
 
-## Figure: XBTUSD 1-hour OFI vs Mid-price change
+# Figure: XBTUSD 1-hour OFI vs Mid-price change
 
 ```{r}
 #| fig-height: 5
@@ -214,7 +214,7 @@ ggplot(ofi_vs_price_1h, aes(x = OFI, y = mid_price_change)) +
 
 ```
 
-## Figure: XBTUSD 1-sec TFI vs mid price change.
+# Figure: XBTUSD 1-sec TFI vs mid price change.
 
 ```{r}
 #| fig-width: 6
@@ -267,7 +267,7 @@ ggplot(one_sec_results, aes(x = TFI, y = mid_price_change)) +
 #ggsave("XBTUSD_1sec_TFI_Mid_Price_Change.png", width = 6, height = 5, dpi = 300, bg = "white")
 ```
 
-## Figure: XBTUSD 1-hour TFI vs mid price change.
+# Figure: XBTUSD 1-hour TFI vs mid price change.
 
 ```{r}
 #| fig-width: 6
@@ -319,4 +319,58 @@ ggplot(one_hour_results, aes(x = TFI, y = mid_price_change)) +
 
 #ggsave("XBTUSD_1hour_TFI_Mid_Price_Change.png", width = 6, height = 5, dpi = 300, bg = "white")
 
+```
+
+# Time series plots
+
+## Time Series OFI
+
+```{r}
+# Aggregate OFI and TFI with 10-second intervals
+ofi_data <- aggregate_ofi(quote_data_all, interval = "10 secs", tick_size = 0.1)
+library(scales)
+# Time series plot of OFI
+p1 <- ggplot(ofi_data, aes(x = interval_time, y = OFI / 1e6)) +
+  geom_line(color = "steelblue") +
+  labs(
+    title = "",
+    x = "Time",
+    y = expression("OFI ("*10^6*")")
+  ) +
+  scale_x_datetime(
+    date_breaks = "5 days",
+    date_labels = "%b %d"  # e.g., "Oct 01"
+  ) +
+  scale_y_continuous(
+    breaks = seq(-30, 40, by = 10),  # manually define tick marks
+    labels = scales::number_format(accuracy = 1)
+  ) +
+  theme_minimal()
+
+p1
+
+##ggsave("OFI_time_series.png", width = 6, height = 5, dpi = 300, bg = "white")
+```
+
+## Time Series TFI
+
+```{r}
+tfi_data <- aggregate_tfi(trade_data_all, quote_data_all, interval = "10 secs", tick_size = 0.1)
+# Time series plot of TFI
+p2 <- ggplot(tfi_data, aes(x = interval_time, y = TFI / 1e6)) +
+  geom_line(color = "steelblue") +
+  labs(
+    title = "",
+    x = "Time",
+    y = expression("TFI (x"*10^6*")")
+  ) +
+  scale_x_datetime(
+    date_breaks = "5 days",
+    date_labels = "%b %d"  # e.g., "Oct 01"
+  ) +
+  scale_y_continuous(labels = scales::number_format(accuracy = 1)) +
+  theme_minimal()
+p2
+
+##ggsave("TFI_time_series.png", width = 6, height = 5, dpi = 300, bg = "white")
 ```
