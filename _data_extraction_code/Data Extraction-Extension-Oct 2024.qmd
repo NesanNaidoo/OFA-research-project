@@ -1,0 +1,66 @@
+---
+title: "Extension - Oct 2024"
+format: html
+---
+
+# Required Libraries
+```{r}
+library(readr)
+library(dplyr)
+library(utils)
+```
+
+```{r}
+# Set subfolder names relative to the current directory (same as QMD file)
+quote_folder <- file.path(".", "Quote Data")
+trade_folder <- file.path(".", "Trade Data")
+
+# General function to load and filter data by type
+get_data <- function(date.str, type = c("quote", "trade")) {
+  type <- match.arg(type)
+  
+  # Choose correct folder
+  folder <- if (type == "quote") quote_folder else trade_folder
+  
+  # Build filename: e.g. "20241001.csv.gz"
+  filename <- file.path(folder, paste0(gsub("-", "", date.str), ".csv.gz"))
+  
+  if (!file.exists(filename)) {
+    warning("File not found: ", filename)
+    return(NULL)
+  }
+  
+  # Read compressed CSV and filter
+  df <- read_csv(filename, col_types = cols())
+  df <- filter(df, symbol == "XBTUSD")
+  
+  return(df)
+}
+
+# Date range for October 2024
+dates <- seq(as.Date("2024-10-01"), as.Date("2024-10-31"), by = "day")
+
+```
+
+```{r}
+# ---- QUOTES ----
+bitcoin.quotes <- bind_rows(lapply(dates, function(d) {
+  date.str <- format(d, "%Y-%m-%d")
+  message("Processing QUOTE: ", date.str)
+  get_data(date.str, type = "quote")
+}))
+
+write_csv(bitcoin.quotes, "XBTUSD_quotes_20241001_20241031.csv")
+
+
+# ---- TRADES ----
+bitcoin.trades <- bind_rows(lapply(dates, function(d) {
+  date.str <- format(d, "%Y-%m-%d")
+  message("Processing TRADE: ", date.str)
+  get_data(date.str, type = "trade")
+}))
+
+write_csv(bitcoin.trades, "XBTUSD_trades_20241001_20241031.csv")
+
+```
+
