@@ -397,14 +397,10 @@ p1 / p2 / p3
 ```
 
 
-### Dickey-Fuller and KPSS test of stationarity for Price series 
+### Dickey-Fuller and KPSS test of stationarity for differenced Price series 
 ```{r}
 #To examine stationarity of the differenced price series, augmented Dickey–Fuller (ADF) and KPSS tests are conducted or all variants of k in ΔPk variable. The tests confirm that price series are stationary  for every sampling period k at 1% significance level.
-library(dplyr)
-library(lubridate)
-library(urca)
-library(knitr)
-
+set.seed(1)
 intervals <- c("1 sec", "10 sec","1 min", "5 min", "10 min", "1 hour")
 
 perform_stationarity_urca <- function(series) {
@@ -475,59 +471,6 @@ kable(price_stationarity_urca, digits = 6,
 
 
 
-
-```
-
-
-### Using Urca Package
-```{r}
-library(urca)
-library(dplyr)
-library(lubridate)
-library(knitr)
-
-intervals <- c("1 sec", "10 sec","1 min", "5 min", "10 min", "1 hour")
-
-perform_stationarity_urca <- function(series) {
-  # ADF test (trend = "none" because we're testing stationary diff series)
-  adf <- ur.df(series, type = "none", lags = 1)
-  
-  # KPSS test (null: stationary)
-  kpss <- ur.kpss(series, type = "mu", lags = "short")
-  
-  data.frame(
-    ADF_Statistic = adf@teststat[1], # τ statistic
-    ADF_CV_1pct = adf@cval[1, "1pct"],
-    ADF_CV_5pct = adf@cval[1, "5pct"],
-    ADF_CV_10pct = adf@cval[1, "10pct"],
-    KPSS_Statistic = kpss@teststat,
-    KPSS_CV_1pct = kpss@cval["1pct"],
-    KPSS_CV_5pct = kpss@cval["5pct"],
-    KPSS_CV_10pct = kpss@cval["10pct"]
-  )
-}
-
-price_stationarity_urca <- data.frame()
-
-for (int in intervals) {
-  agg <- quote_data_all %>%
-    mutate(interval_time = floor_date(timestamp, unit = int)) %>%
-    group_by(interval_time) %>%
-    summarise(mid_price = mean(mid_price, na.rm = TRUE), .groups = "drop")
-  
-  dpk <- diff(agg$mid_price)
-  
-  test_results <- perform_stationarity_urca(dpk)
-  test_results$Interval <- int
-  
-  price_stationarity_urca <- bind_rows(price_stationarity_urca, test_results)
-}
-
-price_stationarity_urca <- price_stationarity_urca %>%
-  select(Interval, everything())
-
-kable(price_stationarity_urca, digits = 6,
-      caption = "ADF and KPSS Test Results for ΔPₖ (URCA package)")
 
 ```
 
@@ -636,10 +579,10 @@ ofi_series_10s <- na.omit(ofi_10s$OFI)
 
 # ADF test using urca
 # Choose model = "drift" for constant only, or "trend" for constant + trend
-adf_urca <- ur.df(ofi_series_10s, type = "drift", selectlags = "AIC")
+adf_urca <- ur.df(ofi_series_10s, type = "none", selectlags = "AIC")
 
 # ADF test using ur.df with drift (constant) only
-adf_test <- ur.df(ofi_series_10s, type = "drift", selectlags = "AIC")
+adf_test <- ur.df(ofi_series_10s, type = "none", selectlags = "AIC")
 
 # Extract the test statistic
 adf_stat <- adf_test@teststat["statistic", "tau2"]
@@ -659,6 +602,72 @@ cat(sprintf("10%%             : %.3f\n", crit_vals["10pct"]))
 
 
 ```
+
+## ADF and KPSS all intervals
+```{r}
+# Define intervals
+intervals <- c("1 sec", "10 sec", "1 min", "5 min", "10 min", "1 hour")
+
+# Custom test function using urca with drift for ADF
+perform_ofi_tfi_tests <- function(series) {
+  series <- as.numeric(series)
+  series <- series[is.finite(series)]
+  
+  if (length(series) < 10) {
+    return(data.frame(
+      ADF_Statistic = NA_real_, ADF_CV_1pct = NA_real_,
+      KPSS_Statistic = NA_real_, KPSS_CV_1pct = NA_real_
+    ))
+  }
+
+  ## ADF test with drift
+  adf <- ur.df(series, type = "none", lags = 1)
+  adf_stat <- as.numeric(adf@teststat[1])
+  adf_cv1  <- as.numeric(adf@cval[1, "1pct"])
+
+  ## KPSS test (level stationarity)
+  kpss <- ur.kpss(series, type = "mu", lags = "short")
+  kpss_stat <- as.numeric(kpss@teststat)
+  
+  ## Robust 1% CV extraction
+  kpss_cv <- kpss@cval
+  kpss_cv1 <- if (!is.null(names(kpss_cv)) && "1pct" %in% names(kpss_cv)) {
+    as.numeric(kpss_cv[["1pct"]])
+  } else if (!is.null(colnames(kpss_cv)) && "1pct" %in% colnames(kpss_cv)) {
+    as.numeric(kpss_cv[1, "1pct"])
+  } else {
+    as.numeric(kpss_cv[length(kpss_cv)])  # fallback
+  }
+
+  data.frame(
+    ADF_Statistic  = adf_stat,
+    ADF_CV_1pct    = adf_cv1,
+    KPSS_Statistic = kpss_stat,
+    KPSS_CV_1pct   = kpss_cv1
+  )
+}
+####################################################
+# OFI
+ofi_stationarity_urca <- data.frame()
+
+for (int in intervals) {
+  ofi_agg <- aggregate_ofi(quote_data_all, interval = int)
+  
+  test_results <- perform_ofi_tfi_tests(ofi_agg$OFI)
+  test_results$Interval <- int
+  
+  ofi_stationarity_urca <- bind_rows(ofi_stationarity_urca, test_results)
+}
+
+ofi_stationarity_urca <- ofi_stationarity_urca %>%
+  select(Interval, everything())
+
+kable(ofi_stationarity_urca, digits = 5,
+      caption = "ADF and KPSS Tests for OFI (URCA, 1% CV)")
+
+
+```
+
 
 ## Figure 3: XBTUSD 10-s OFI ACF
 ```{r}
@@ -806,65 +815,28 @@ ggplot(ofi_vs_price_1m, aes(x = OFI, y = mid_price_change)) +
 
 
 # 5.3 Trade flow imbalance (TFI)
-## ADF and KPSS stationarity tests
+## ADF and KPSS - all intervals
 ```{r}
-# Define the intervals to test
-intervals <- c("1 sec", "10 sec", "5 min", "10 min", "1 hour")
+##############################
+# TFI
+tfi_stationarity_urca <- data.frame()
 
-# Function to perform and format stationarity tests
-perform_stationarity_tests <- function(tfi_series) {
-  # ADF test (null hypothesis: series has unit root)
-  adf_result <- adf.test(tfi_series, alternative = "stationary")
-  
-  # KPSS test (null hypothesis: series is stationary)
-  kpss_result <- kpss.test(tfi_series, null = "Level")
-  
-  # Return formatted results
-  data.frame(
-    ADF_Statistic = adf_result$statistic,
-    ADF_p_value = adf_result$p.value,
-    KPSS_Statistic = kpss_result$statistic,
-    KPSS_p_value = kpss_result$p.value
-  )
-}
-
-# Initialize results dataframe
-tfi_stationarity_results <- data.frame(
-  Interval = character(),
-  ADF_Statistic = numeric(),
-  ADF_p_value = numeric(),
-  KPSS_Statistic = numeric(),
-  KPSS_p_value = numeric(),
-  stringsAsFactors = FALSE
-)
-
-# Loop through each interval and perform tests
 for (int in intervals) {
-  # Aggregate TFI for the current interval
-  tfi_data <- aggregate_tfi(trade_data_all, quote_data_all, interval = int)
+  tfi_agg <- aggregate_tfi(trade_data_all, quote_data_all, interval = int)
   
-  # Extract TFI series
-  tfi_series <- tfi_data$TFI
-  
-  # Perform stationarity tests
-  test_results <- perform_stationarity_tests(tfi_series)
-  
-  # Add interval information
+  test_results <- perform_ofi_tfi_tests(tfi_agg$TFI)
   test_results$Interval <- int
   
-  # Append to results
-  tfi_stationarity_results <- rbind(tfi_stationarity_results, test_results)
+  tfi_stationarity_urca <- bind_rows(tfi_stationarity_urca, test_results)
 }
 
-# Reorder columns for better presentation
-tfi_stationarity_results <- tfi_stationarity_results %>%
+tfi_stationarity_urca <- tfi_stationarity_urca %>%
   select(Interval, everything())
 
-# Display results in a nice table
-kable(tfi_stationarity_results, digits = 4, 
-      caption = "ADF and KPSS Test Results for TFI at Different Intervals")
+kable(tfi_stationarity_urca, digits = 5,
+      caption = "ADF and KPSS Tests for TFI (URCA, 1% CV)")
 
-#Warning: p-value smaller than printed p-valueWarning: p-value greater than printed p-valueWarning: p-value smaller than printed p-valueWarning: p-value greater than printed p-valueWarning: p-value smaller than printed p-valueWarning: p-value greater than printed p-valueWarning: p-value smaller than printed p-valueWarning: p-value greater than printed p-valueWarning: p-value smaller than printed p-valueWarning: p-value greater than printed p-value ----- proves stationarity
+
 ```
 
 
@@ -1216,14 +1188,12 @@ p1 <- ggplot(ofi_data, aes(x = interval_time, y = OFI / 1e6)) +
     date_breaks = "5 days",
     date_labels = "%b %d"  # e.g., "Oct 01"
   ) +
-  scale_y_continuous(
-    breaks = seq(-30, 40, by = 10),  # manually define tick marks
-    labels = scales::number_format(accuracy = 1)
-  ) +
   theme_minimal()
 
 p1
-
+# scale_y_continuous(
+    # breaks = seq(-30, 40, by = 10),  # manually define tick marks
+    # labels = scales::number_format(accuracy = 1)
 ##ggsave("OFI_time_series.png", width = 6, height = 5, dpi = 300, bg = "white")
 ```
 
@@ -1237,7 +1207,7 @@ p2 <- ggplot(tfi_data, aes(x = interval_time, y = TFI / 1e6)) +
   labs(
     title = "",
     x = "Time",
-    y = expression("TFI (x"*10^6*")")
+    y = expression("TFI (x "*10^6*")")
   ) +
   scale_x_datetime(
     date_breaks = "5 days",

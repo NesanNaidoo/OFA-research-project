@@ -592,10 +592,10 @@ ofi_series_10s <- na.omit(ofi_10s$OFI)
 
 # ADF test using urca
 # Choose model = "drift" for constant only, or "trend" for constant + trend
-adf_urca <- ur.df(ofi_series_10s, type = "drift", selectlags = "AIC")
+adf_urca <- ur.df(ofi_series_10s, type = "none", selectlags = "AIC")
 
 # ADF test using ur.df with drift (constant) only
-adf_test <- ur.df(ofi_series_10s, type = "drift", selectlags = "AIC")
+adf_test <- ur.df(ofi_series_10s, type = "none", selectlags = "AIC")
 
 # Extract the test statistic
 adf_stat <- adf_test@teststat["statistic", "tau2"]
@@ -618,10 +618,6 @@ cat(sprintf("10%%             : %.3f\n", crit_vals["10pct"]))
 
 ## ADF and KPSS all intervals
 ```{r}
-library(dplyr)
-library(lubridate)
-library(urca)
-library(knitr)
 
 # Define intervals
 intervals <- c("1 sec", "10 sec", "1 min", "5 min", "10 min", "1 hour")
@@ -639,7 +635,7 @@ perform_ofi_tfi_tests <- function(series) {
   }
 
   ## ADF test with drift
-  adf <- ur.df(series, type = "drift", lags = 1)
+  adf <- ur.df(series, type = "none", lags = 1)
   adf_stat <- as.numeric(adf@teststat[1])
   adf_cv1  <- as.numeric(adf@cval[1, "1pct"])
 
@@ -664,11 +660,8 @@ perform_ofi_tfi_tests <- function(series) {
     KPSS_CV_1pct   = kpss_cv1
   )
 }
-
-```
-
+####################################################
 # OFI
-```{r}
 ofi_stationarity_urca <- data.frame()
 
 for (int in intervals) {
@@ -686,173 +679,8 @@ ofi_stationarity_urca <- ofi_stationarity_urca %>%
 kable(ofi_stationarity_urca, digits = 5,
       caption = "ADF and KPSS Tests for OFI (URCA, 1% CV)")
 
-```
-
-
-# TFI
-```{r}
-tfi_stationarity_urca <- data.frame()
-
-for (int in intervals) {
-  tfi_agg <- aggregate_tfi(trade_data_all, quote_data_all, interval = int)
-  
-  test_results <- perform_ofi_tfi_tests(tfi_agg$TFI)
-  test_results$Interval <- int
-  
-  tfi_stationarity_urca <- bind_rows(tfi_stationarity_urca, test_results)
-}
-
-tfi_stationarity_urca <- tfi_stationarity_urca %>%
-  select(Interval, everything())
-
-kable(tfi_stationarity_urca, digits = 5,
-      caption = "ADF and KPSS Tests for TFI (URCA, 1% CV)")
 
 ```
-
-## Figure 3: XBTUSD 10-s OFI ACF
-```{r}
-#| fig-width: 5
-#| fig-height: 5
-# Step 1: Aggregate OFI into 10-second intervals (signed sums)
-# Aggregate into 10-second buckets
-ofi_10s <- quote_data_all |>
-  mutate(interval_time = floor_date(timestamp, unit = "10 sec")) |>
-  group_by(interval_time) |>
-  summarise(OFI = sum(OFI, na.rm = TRUE)) |>
-  ungroup()
-
-# Compute ACF
-acf_ofi_result <- acf(ofi_10s$OFI, lag.max = 9, plot = FALSE)
-
-# Format for plot
-acf_ofi_df <- data.frame(
-  Lag = as.numeric(acf_ofi_result$lag),
-  ACF = as.numeric(acf_ofi_result$acf)
-)
-
-# Confidence interval
-N_ofi <- length(ofi_10s$OFI)
-conf_bound <- 0.05
-
-# Plot
-ggplot(acf_ofi_df, aes(x = Lag, y = ACF)) +
-  geom_bar(stat = "identity", fill = "steelblue", width = 0.4) +
-  geom_hline(yintercept = c(conf_bound, -conf_bound), linetype = "dashed", color = "red",size=0.7) +
-  geom_hline(yintercept = 0, linetype = "solid", color = "black") +
-  scale_x_continuous(
-    breaks = 0:9,
-    limits = c(-0.5, 9.5)
-  ) +
-  scale_y_continuous(
-    breaks = seq(-0.1, 1, by = 0.1),
-    limits = c(-0.1, 1.05),
-    expand = c(0, 0)
-  ) +
-  labs(
-    title = "OFI 10-Second ACF", # OFI 10-Second ACF
-    x = "Lag",
-    y = "Autocorrelation"
-  ) +
-  theme_minimal()+
-  theme(
-    panel.grid.minor = element_blank(),
-    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
-    axis.title = element_text(size = 10),
-    axis.text = element_text(size = 10),
-    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)  # Hide minor grid lines
-  )
-```
-
-
-## Figure 4: XBTUSD 1-s OFI vs Mid-price change
-```{r}
-# Aggregate using your function
-ofi_vs_price_1s <- aggregate_ofi(
-  quote_data_all,
-  interval = "1 second",
-  tick_size = 0.1
-)
-
-# Plot
-ggplot(ofi_vs_price_1s, aes(x = OFI, y = mid_price_change)) +
-  geom_point(alpha = 0.5, size = 0.8, color = "steelblue") +
-  labs(
-    title = "XBTUSD 1-Second OFI",
-    x = expression(OFI~"("*10^7*")"),
-    y = "Mid-Price Change"
-  ) +
-  scale_x_continuous(
-    limits = c(-0.6e7, 0.8e7),
-    breaks = seq(-0.6e7, 0.8e7, by = 0.2e7),
-    labels = function(x) x / 1e7
-  ) +
-  theme_minimal() +
-  theme(
-    panel.ontop = TRUE,  # grid lines above points
-    panel.grid.major = element_line(color = "grey80", linewidth = 0.3),
-    panel.grid.minor = element_blank(),
-    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
-    axis.title = element_text(size = 10),
-    axis.text = element_text(size = 10),
-    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)
-  )
-
-```
-
-## Figure 5: XBTUSD 1-min OFI vs Mid-price change
-```{r}
-#| fig-height: 5
-#| fig-width: 7
-# Use your aggregation function
-ofi_vs_price_1m <- aggregate_ofi(
-  df = quote_data_all,
-  interval = "1 minute",   # match Figure 5's granularity
-  tick_size = 0.1          # your identified tick size
-)
-
-
-# Scatter plot for 1-minute OFI
-ggplot(ofi_vs_price_1m, aes(x = OFI, y = mid_price_change)) +
-  # Points first
-  geom_point(alpha = 0.3, size = 0.8, color = "steelblue") +
-  
-  # Scales
-  scale_x_continuous(
-    limits = c(-0.5e7, 1.5e7),
-    breaks = seq(-0.5e7, 1.5e7, by = 0.5e7),
-    labels = function(x) x / 1e7
-  ) +
-  scale_y_continuous(
-    limits = c(-1250, 750),
-    breaks = seq(-1250, 750, by = 250)
-  ) +
-  
-  # Labels
-  labs(
-    title = "XBTUSD 1-Minute OFI",
-    x = expression(OFI~"("*10^7*")"),
-    y = "Mid-Price Change "
-  ) +
-  
-  # Theme with grid overlay
-  theme_minimal() +
-  theme(
-    panel.ontop = TRUE,  # This makes grid lines draw over data
-    panel.grid.major = element_line(color = "grey80", linewidth = 0.1),
-    panel.grid.minor = element_blank(),
-    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
-    axis.title = element_text(size = 10),
-    axis.text = element_text(size = 10),
-    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)
-  )
-
-
-
-```
-
-
-
 
 
 # 5.3 Trade flow imbalance (TFI)(Wrong package)
@@ -914,9 +742,32 @@ tfi_stationarity_results <- tfi_stationarity_results %>%
 kable(tfi_stationarity_results, digits = 4, 
       caption = "ADF and KPSS Test Results for TFI at Different Intervals")
 
-#Warning: p-value smaller than printed p-valueWarning: p-value greater than printed p-valueWarning: p-value smaller than printed p-valueWarning: p-value greater than printed p-valueWarning: p-value smaller than printed p-valueWarning: p-value greater than printed p-valueWarning: p-value smaller than printed p-valueWarning: p-value greater than printed p-valueWarning: p-value smaller than printed p-valueWarning: p-value greater than printed p-value ----- proves stationarity
+
 ```
 
+
+
+## ADF and KPSS tests-all intervals
+```{r}
+##############################
+# TFI
+tfi_stationarity_urca <- data.frame()
+
+for (int in intervals) {
+  tfi_agg <- aggregate_tfi(trade_data_all, quote_data_all, interval = int)
+  
+  test_results <- perform_ofi_tfi_tests(tfi_agg$TFI)
+  test_results$Interval <- int
+  
+  tfi_stationarity_urca <- bind_rows(tfi_stationarity_urca, test_results)
+}
+
+tfi_stationarity_urca <- tfi_stationarity_urca %>%
+  select(Interval, everything())
+
+kable(tfi_stationarity_urca, digits = 5,
+      caption = "ADF and KPSS Tests for TFI (URCA, 1% CV)")
+```
 
 ## Figure 6:  XBTUSD 10-s TFI ACF
 ```{r}
@@ -1254,7 +1105,7 @@ p1
 tfi_data <- aggregate_tfi(trade_data_all, quote_data_all, interval = "10 secs", tick_size = 0.1)
 # Time series plot of TFI
 p2 <- ggplot(tfi_data, aes(x = interval_time, y = TFI / 1e6)) +
-  geom_line(color = "darkred") +
+  geom_line(color = "steelblue") +
   labs(
     title = "",
     x = "Time",
