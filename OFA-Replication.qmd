@@ -1207,7 +1207,7 @@ p2 <- ggplot(tfi_data, aes(x = interval_time, y = TFI / 1e6)) +
   labs(
     title = "",
     x = "Time",
-    y = expression("TFI (x "*10^6*")")
+    y = expression("TFI ("*10^6*")")
   ) +
   scale_x_datetime(
     date_breaks = "5 days",
