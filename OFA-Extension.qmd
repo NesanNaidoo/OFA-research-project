@@ -19,6 +19,7 @@ library(data.table)
 library(lubridate)
 library(urca)
 library(patchwork)
+library(readxl)
 ```
 
 
@@ -491,10 +492,10 @@ kable(price_stationarity_urca, digits = 6,
 
 # 5.2  Order flow imbalance (OFI)
 
-## Table 1: XBTUSD 1-Second Arrival Rate Statistics
+## Table 1: XBTUSD 1-Minute Arrival Rate Statistics
 ```{r}
 
-arrival_rates <- quote_data_all |>
+arrival_rates <- trade_data_all |>
   mutate(
     timestamp = as.POSIXct(timestamp, format = "%Y-%m-%d %H:%M:%OS", tz = "UTC"),
     second_bucket = floor_date(timestamp, unit = "1 min")
@@ -519,6 +520,71 @@ print(summary_table1)
 
 
 ```
+## XBTUSD 1-Minute Arrival Rate Statistics - Volume per minute
+```{r}
+volume_summary_crypto <- trade_data_all |>
+  mutate(
+    minute_bucket = floor_date(timestamp, unit = "1 min")
+  ) |>
+  group_by(minute_bucket) |>
+  summarise(total_volume = sum(Volume)) |>
+  ungroup() |>
+  summarise(
+    Mean = mean(total_volume),
+    SD = sd(total_volume),
+    Min = min(total_volume),
+    `25%` = quantile(total_volume, 0.25),
+    `50%` = median(total_volume),
+    `75%` = quantile(total_volume, 0.75),
+    Max = max(total_volume)
+  )
+print(volume_summary_crypto)
+```
+
+
+## S&P 500 ETF index arrival statistics - volume per minute
+```{r}
+# Read the Excel file
+spy_data <- read_excel("S&P500 ETF Trust_October 2024.xlsx", sheet = "Sheet 1")
+
+# Extract the historical price data section (starting from "Local Date" header)
+# Find the starting row of the historical data
+start_row <- which(spy_data[[1]] == "Local Date") + 1
+
+# Read the data properly (adjust range as needed based on your file structure)
+spy_history <- read_excel("S&P500 ETF Trust_October 2024.xlsx", sheet = "Sheet 1", 
+                         skip = start_row - 1, col_names = TRUE)
+
+# Clean up the column names and select relevant columns
+colnames(spy_history) <- c("Local Date", "Local Time", "Close", "Open", "Volume", "V6", "V7", "V8", "V9", "V10", "V11", "V12", "V13")
+
+# Filter out empty rows and create proper timestamp
+spy_trade_data <- spy_history |>
+  filter(!is.na(`Local Date`) & !is.na(Volume) & Volume > 0) |>
+  mutate(
+    timestamp = as.POSIXct(paste(`Local Date`, `Local Time`), 
+                          format = "%Y-%m-%d %H:%M:%S", tz = "UTC"),
+    Volume = as.numeric(Volume)
+  ) |>
+  select(timestamp, Volume) |>
+  arrange(timestamp)
+
+
+# Create summary table (same format as your crypto code)
+summary_table_spy <- spy_trade_data |>
+  summarise(
+    Mean = mean(Volume, na.rm = TRUE),
+    SD = sd(Volume, na.rm = TRUE),
+    Min = min(Volume, na.rm = TRUE),
+    `25%` = quantile(Volume, 0.25, na.rm = TRUE),
+    `50%` = median(Volume, na.rm = TRUE),
+    `75%` = quantile(Volume, 0.75, na.rm = TRUE),
+    Max = max(Volume, na.rm = TRUE)
+  )
+
+print(summary_table_spy)
+```
+
 
 ## Figure 2: ACF of 10-Second Arrival Counts
 Count the number of quote updates per 10-second bucket.
