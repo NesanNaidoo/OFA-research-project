@@ -318,6 +318,8 @@ ggplot(quote_data_day, aes(x = timestamp, y = rolling_volatility, color = "vol")
 
 ### Figure 1: Plots vertically stacked
 ```{r}
+#| fig-width: 9
+#| fig-height: 5
 # Define common breaks and labels
 start_time <- as.POSIXct("2017-10-15 03:00:00", tz = "UTC")
 end_time   <- as.POSIXct("2017-10-15 21:00:00", tz = "UTC")
@@ -564,6 +566,9 @@ ggplot(acf_df, aes(x = Lag, y = ACF)) +
 ```
 
 
+
+
+
 ## Table 2: ADF Test on OFI Series
 Perform the Augmented Dickey-Fuller (ADF) test on the OFI time series.
 Report: ADF statistic, p-value, Critical values
@@ -721,6 +726,45 @@ ggplot(acf_ofi_df, aes(x = Lag, y = ACF)) +
     axis.text = element_text(size = 10),
     plot.title = element_text(size = 10, face = "plain", hjust = 0.5)  # Hide minor grid lines
   )
+```
+
+## Time series Update Arrival Volumes
+```{r}
+# Load required packages
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(scales)
+
+# Aggregate quote updates into 10-second intervals
+arrival_10s <- quote_data_all |>
+  mutate(ten_sec_bucket = floor_date(timestamp, unit = "10 seconds")) |>
+  count(ten_sec_bucket, name = "updates_per_10s")
+
+# Time series plot of update arrival volumes
+ggplot(arrival_10s, aes(x = ten_sec_bucket, y = updates_per_10s)) +
+  geom_line(color = "steelblue") +
+  labs(
+    title = "Update Arrival Volumes (10-Second Intervals)",
+    x = "Time",
+    y = "Number of Quote Updates"
+  ) +
+  scale_x_datetime(
+    date_breaks = "5 days",
+    date_labels = "%b %d"  # e.g., "Oct 01"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
+    axis.title = element_text(size = 10),
+    axis.text.x = element_text(size = 8, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)
+  )
+
+
+
 ```
 
 
