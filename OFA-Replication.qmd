@@ -565,7 +565,87 @@ ggplot(acf_df, aes(x = Lag, y = ACF)) +
 
 ```
 
+## Time series Update Arrival Volumes
+```{r}
+# Load required packages
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(scales)
 
+# Aggregate quote updates into 10-second intervals
+arrival_10s <- quote_data_all |>
+  mutate(ten_sec_bucket = floor_date(timestamp, unit = "10 seconds")) |>
+  count(ten_sec_bucket, name = "updates_per_10s")
+
+# Time series plot of update arrival volumes
+ggplot(arrival_10s, aes(x = ten_sec_bucket, y = updates_per_10s)) +
+  geom_line(color = "steelblue") +
+  labs(
+    title = "Update Arrival Volumes (10-Second Intervals)",
+    x = "Time",
+    y = "Number of Quote Updates"
+  ) +
+  scale_x_datetime(
+    date_breaks = "5 days",
+    date_labels = "%b %d"  # e.g., "Oct 01"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
+    axis.title = element_text(size = 10),
+    axis.text.x = element_text(size = 8, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)
+  )
+
+
+
+```
+
+## ADF and KPSS tests for Update Arrival Volume
+```{r}
+# ==========================================
+# Stationarity Tests: ADF and KPSS (urca)
+# ==========================================
+
+# Load required package
+library(urca)
+
+# Extract the series of update counts
+update_counts <- arrival_10s$updates_per_10s
+
+# 1. Augmented Dickey–Fuller (ADF) test
+# The null hypothesis (H0): series has a unit root (non-stationary)
+adf_test <- ur.df(update_counts, type = "drift", selectlags = "AIC")
+summary(adf_test)
+
+# 2. KPSS test
+# The null hypothesis (H0): series is stationary
+kpss_test <- ur.kpss(update_counts, type = "tau")
+summary(kpss_test)
+
+# Optional: create a concise summary table for reporting
+adf_stat <- adf_test@teststat[1]    # ADF t-statistic
+adf_crit <- adf_test@cval[1, ]      # Critical values
+
+kpss_stat <- kpss_test@teststat     # KPSS statistic
+kpss_crit <- kpss_test@cval         # Critical values
+
+stationarity_results <- data.frame(
+  Test = c("ADF (trend)", "KPSS (tau)"),
+  Statistic = c(round(adf_stat, 3), round(kpss_stat, 3)),
+  `5% Critical Value` = c(adf_crit["5pct"], kpss_crit["5pct"]),
+  `Decision (5%)` = c(
+    ifelse(adf_stat < adf_crit["5pct"], "Reject H0 (Stationary)", "Fail to reject H0 (Non-stationary)"),
+    ifelse(kpss_stat > kpss_crit["5pct"], "Reject H0 (Non-stationary)", "Fail to reject H0 (Stationary)")
+  )
+)
+
+print(stationarity_results)
+
+```
 
 
 
@@ -726,45 +806,6 @@ ggplot(acf_ofi_df, aes(x = Lag, y = ACF)) +
     axis.text = element_text(size = 10),
     plot.title = element_text(size = 10, face = "plain", hjust = 0.5)  # Hide minor grid lines
   )
-```
-
-## Time series Update Arrival Volumes
-```{r}
-# Load required packages
-library(dplyr)
-library(lubridate)
-library(ggplot2)
-library(scales)
-
-# Aggregate quote updates into 10-second intervals
-arrival_10s <- quote_data_all |>
-  mutate(ten_sec_bucket = floor_date(timestamp, unit = "10 seconds")) |>
-  count(ten_sec_bucket, name = "updates_per_10s")
-
-# Time series plot of update arrival volumes
-ggplot(arrival_10s, aes(x = ten_sec_bucket, y = updates_per_10s)) +
-  geom_line(color = "steelblue") +
-  labs(
-    title = "Update Arrival Volumes (10-Second Intervals)",
-    x = "Time",
-    y = "Number of Quote Updates"
-  ) +
-  scale_x_datetime(
-    date_breaks = "5 days",
-    date_labels = "%b %d"  # e.g., "Oct 01"
-  ) +
-  theme_minimal() +
-  theme(
-    panel.grid.minor = element_blank(),
-    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
-    axis.title = element_text(size = 10),
-    axis.text.x = element_text(size = 8, angle = 45, hjust = 1),
-    axis.text.y = element_text(size = 10),
-    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)
-  )
-
-
-
 ```
 
 
