@@ -688,11 +688,13 @@ ggplot(arrival_10s, aes(x = ten_sec_bucket, y = updates_per_10s)) +
 ## ADF and KPSS tests for Update Arrival Volume
 ```{r}
 # ==========================================
-# Stationarity Tests: ADF and KPSS (urca)
+# Stationarity Tests: ADF and PP (urca)
 # ==========================================
 
-# Load required package
+# Load required packages
 library(urca)
+library(lmtest)
+library(zoo)
 
 # Extract the series of update counts
 update_counts <- arrival_10s$updates_per_10s
@@ -702,74 +704,42 @@ update_counts <- arrival_10s$updates_per_10s
 adf_test <- ur.df(update_counts, type = "drift", selectlags = "AIC")
 summary(adf_test)
 
-# 2. KPSS test
-# The null hypothesis (H0): series is stationary
-kpss_test <- ur.kpss(update_counts, type = "tau")
-summary(kpss_test)
+# 2. Phillips-Perron (PP) test
+# The null hypothesis (H0): series has a unit root (non-stationary)
+pp_test <- ur.pp(update_counts, type = "Z-tau", model = "constant", lags = "short")
+summary(pp_test)
 
-# Optional: create a concise summary table for reporting
+# Optional: Create a concise summary table for reporting
 adf_stat <- adf_test@teststat[1]    # ADF t-statistic
 adf_crit <- adf_test@cval[1, ]      # Critical values
-
-kpss_stat <- kpss_test@teststat     # KPSS statistic
-kpss_crit <- kpss_test@cval         # Critical values
+pp_stat <- pp_test@teststat[1]      # PP t-statistic
+pp_crit <- pp_test@cval[1, ]        # Critical values
 
 stationarity_results <- data.frame(
-  Test = c("ADF (trend)", "KPSS (tau)"),
-  Statistic = c(round(adf_stat, 3), round(kpss_stat, 3)),
-  `5% Critical Value` = c(adf_crit["5pct"], kpss_crit["5pct"]),
+  Test = c("ADF (drift)", "PP (Z-tau)"),
+  Statistic = c(round(adf_stat, 3), round(pp_stat, 3)),
+  `5% Critical Value` = c(adf_crit["5pct"], pp_crit["5pct"]),
   `Decision (5%)` = c(
     ifelse(adf_stat < adf_crit["5pct"], "Reject H0 (Stationary)", "Fail to reject H0 (Non-stationary)"),
-    ifelse(kpss_stat > kpss_crit["5pct"], "Reject H0 (Non-stationary)", "Fail to reject H0 (Stationary)")
+    ifelse(pp_stat < pp_crit["5pct"], "Reject H0 (Stationary)", "Fail to reject H0 (Non-stationary)")
   )
 )
 
 print(stationarity_results)
 
+# Residual Diagnostics
+# 1. Serial Correlation Check (Ljung-Box Test)
+residuals_adf <- adf_test@res  # Access residuals via @res slot
+Box.test(residuals_adf, lag = 10, type = "Ljung-Box")
+
+# 2. Heteroskedasticity Check (Breusch-Pagan Test)
+model <- lm(update_counts ~ lag(update_counts, 1), data = data.frame(update_counts = as.zoo(update_counts)))
+bptest(model)
 ```
 
 
 
-## Table 2: ADF Test on OFI Series
-Perform the Augmented Dickey-Fuller (ADF) test on the OFI time series.
-Report: ADF statistic, p-value, Critical values
-```{r}
-# Step 1: Aggregate OFI into 10s intervals
-ofi_10s <- quote_data_all |>
-  mutate(interval_time = floor_date(timestamp, unit = "10 seconds")) |>
-  group_by(interval_time) |>
-  summarise(OFI = sum(OFI, na.rm = TRUE)) |>
-  ungroup()
-
-ofi_series_10s <- na.omit(ofi_10s$OFI)
-
-# ADF test using urca
-# Choose model = "drift" for constant only, or "trend" for constant + trend
-adf_urca <- ur.df(ofi_series_10s, type = "none", selectlags = "AIC")
-
-# ADF test using ur.df with drift (constant) only
-adf_test <- ur.df(ofi_series_10s, type = "none", selectlags = "AIC")
-
-# Extract the test statistic
-adf_stat <- adf_test@teststat["statistic", "tau2"]
-
-# Manually define critical values (based on ur.df output)
-crit_vals <- adf_test@cval["tau2", ]
-
-# Display in paper-like format
-cat("Table 2: OFI Augmented Dickey–Fuller Test Results\n")
-cat("-------------------------------------------------\n")
-cat(sprintf("ADF statistic   : %.6f\n", adf_stat))
-cat(sprintf("p value         : < 0.0000001\n"))  # Conservative display for small p-values
-cat("Critical values :\n")
-cat(sprintf(" 1%%             : %.3f\n", crit_vals["1pct"]))
-cat(sprintf(" 5%%             : %.3f\n", crit_vals["5pct"]))
-cat(sprintf("10%%             : %.3f\n", crit_vals["10pct"]))
-
-
-```
-
-## ADF and KPSS all intervals
+## ADF and KPSS all intervals OFI (Contradictory Results)
 ```{r}
 
 # Define intervals
@@ -833,6 +803,102 @@ kable(ofi_stationarity_urca, digits = 5,
       caption = "ADF and KPSS Tests for OFI (URCA, 1% CV)")
 
 
+```
+
+
+## ADF and PP affected intervals OFI (new)
+```{r}
+# ==========================================
+# Stationarity Tests: ADF and PP for OFI (Specific Intervals)
+# ==========================================
+
+# Load required packages
+library(urca)
+library(lmtest)
+library(zoo)
+library(dplyr)
+
+# Define specific intervals of interest (contradictory: 1 sec, 10 sec, 1 min)
+intervals <- c("1 sec", "10 sec", "1 min")
+
+# Custom test function using urca with drift for ADF and PP
+perform_ofi_tests <- function(series) {
+  series <- as.numeric(series)
+  series <- series[is.finite(series)]
+  
+  if (length(series) < 10) {
+    return(data.frame(
+      ADF_Statistic = NA_real_, ADF_CV_1pct = NA_real_,
+      PP_Statistic = NA_real_, PP_CV_1pct = NA_real_
+    ))
+  }
+
+  ## ADF test with none
+  adf <- ur.df(series, type = "none", selectlags = "AIC")
+  adf_stat <- as.numeric(adf@teststat[1])
+  adf_cv1 <- as.numeric(adf@cval[1, "1pct"])
+
+  ## PP test with Z-tau and constant
+  pp <- ur.pp(series, type = "Z-alpha", model = "none", lags = "short")
+  pp_stat <- as.numeric(pp@teststat[1])
+  pp_cv1 <- as.numeric(pp@cval[1, "1pct"])
+  summary(pp)
+
+  data.frame(
+    ADF_Statistic = adf_stat,
+    ADF_CV_1pct = adf_cv1,
+    PP_Statistic = pp_stat,
+    PP_CV_1pct = pp_cv1
+  )
+}
+
+# Residual Diagnostics Function
+perform_residual_diagnostics <- function(series, interval) {
+  series <- as.numeric(series)
+  series <- series[is.finite(series)]
+  
+  if (length(series) < 10) return(data.frame(Serial_Corr_p = NA, Hetero_p = NA))
+  
+  # ADF test for residuals
+  adf <- ur.df(series, type = "drift", selectlags = "AIC")
+  residuals <- adf@res
+  
+  # Serial Correlation (Ljung-Box Test)
+  serial_test <- Box.test(residuals, lag = 10, type = "Ljung-Box")
+  serial_p <- serial_test$p.value
+  
+  # Heteroskedasticity (Breusch-Pagan Test) - Proxy AR(1) model
+  model <- lm(series ~ lag(series, 1), data = data.frame(series = as.zoo(series)))
+  hetero_test <- bptest(model)
+  hetero_p <- hetero_test$p.value
+  
+  data.frame(Serial_Corr_p = serial_p, Hetero_p = hetero_p, Interval = interval)
+}
+
+# OFI Stationarity Analysis
+ofi_stationarity_urca <- data.frame()
+
+for (int in intervals) {
+  ofi_agg <- aggregate_ofi(quote_data_all, interval = int)
+  
+  # Stationarity tests
+  test_results <- perform_ofi_tests(ofi_agg$OFI)
+  test_results$Interval <- int
+  
+  ofi_stationarity_urca <- bind_rows(ofi_stationarity_urca, test_results)
+  
+  # Residual diagnostics
+  diag_results <- perform_residual_diagnostics(ofi_agg$OFI, int)
+  ofi_stationarity_urca <- bind_rows(ofi_stationarity_urca, diag_results)
+}
+
+# Reorder and select columns
+ofi_stationarity_urca <- ofi_stationarity_urca %>%
+  select(Interval, ADF_Statistic, ADF_CV_1pct, PP_Statistic, PP_CV_1pct, Serial_Corr_p, Hetero_p)
+
+# Create table
+kable(ofi_stationarity_urca, digits = 5,
+      caption = "ADF and PP Tests with Residual Diagnostics for OFI (URCA, 1% CV, Specific Intervals)")
 ```
 
 
