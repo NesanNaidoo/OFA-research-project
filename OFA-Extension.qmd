@@ -685,7 +685,7 @@ ggplot(arrival_10s, aes(x = ten_sec_bucket, y = updates_per_10s)) +
 
 ```
 
-## ADF and KPSS tests for Update Arrival Volume
+## ADF and PP tests for Update Arrival Volume
 ```{r}
 # ==========================================
 # Stationarity Tests: ADF and PP (urca)
