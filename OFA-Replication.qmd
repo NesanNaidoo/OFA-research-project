@@ -604,14 +604,16 @@ ggplot(arrival_10s, aes(x = ten_sec_bucket, y = updates_per_10s)) +
 
 ```
 
-## ADF and KPSS tests for Update Arrival Volume
+## ADF and PP tests for Update Arrival Volume
 ```{r}
 # ==========================================
-# Stationarity Tests: ADF and KPSS (urca)
+# Stationarity Tests: ADF and PP (urca)
 # ==========================================
 
-# Load required package
+# Load required packages
 library(urca)
+library(lmtest)
+library(zoo)
 
 # Extract the series of update counts
 update_counts <- arrival_10s$updates_per_10s
@@ -621,30 +623,37 @@ update_counts <- arrival_10s$updates_per_10s
 adf_test <- ur.df(update_counts, type = "drift", selectlags = "AIC")
 summary(adf_test)
 
-# 2. KPSS test
-# The null hypothesis (H0): series is stationary
-kpss_test <- ur.kpss(update_counts, type = "tau")
-summary(kpss_test)
+# 2. Phillips-Perron (PP) test
+# The null hypothesis (H0): series has a unit root (non-stationary)
+pp_test <- ur.pp(update_counts, type = "Z-tau", model = "constant", lags = "short")
+summary(pp_test)
 
-# Optional: create a concise summary table for reporting
+# Optional: Create a concise summary table for reporting
 adf_stat <- adf_test@teststat[1]    # ADF t-statistic
 adf_crit <- adf_test@cval[1, ]      # Critical values
-
-kpss_stat <- kpss_test@teststat     # KPSS statistic
-kpss_crit <- kpss_test@cval         # Critical values
+pp_stat <- pp_test@teststat[1]      # PP t-statistic
+pp_crit <- pp_test@cval[1, ]        # Critical values
 
 stationarity_results <- data.frame(
-  Test = c("ADF (trend)", "KPSS (tau)"),
-  Statistic = c(round(adf_stat, 3), round(kpss_stat, 3)),
-  `5% Critical Value` = c(adf_crit["5pct"], kpss_crit["5pct"]),
+  Test = c("ADF (drift)", "PP (Z-tau)"),
+  Statistic = c(round(adf_stat, 3), round(pp_stat, 3)),
+  `5% Critical Value` = c(adf_crit["5pct"], pp_crit["5pct"]),
   `Decision (5%)` = c(
     ifelse(adf_stat < adf_crit["5pct"], "Reject H0 (Stationary)", "Fail to reject H0 (Non-stationary)"),
-    ifelse(kpss_stat > kpss_crit["5pct"], "Reject H0 (Non-stationary)", "Fail to reject H0 (Stationary)")
+    ifelse(pp_stat < pp_crit["5pct"], "Reject H0 (Stationary)", "Fail to reject H0 (Non-stationary)")
   )
 )
 
 print(stationarity_results)
 
+# Residual Diagnostics
+# 1. Serial Correlation Check (Ljung-Box Test)
+residuals_adf <- adf_test@res  # Access residuals via @res slot
+Box.test(residuals_adf, lag = 10, type = "Ljung-Box")
+
+# 2. Heteroskedasticity Check (Breusch-Pagan Test)
+model <- lm(update_counts ~ lag(update_counts, 1), data = data.frame(update_counts = as.zoo(update_counts)))
+bptest(model)
 ```
 
 
