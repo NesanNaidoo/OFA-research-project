@@ -20,6 +20,7 @@ library(lubridate)
 library(urca)
 library(patchwork)
 library(readxl)
+library(lmtest)
 ```
 
 
@@ -495,6 +496,40 @@ kable(price_stationarity_urca, digits = 6,
 
 
 # 5.2  Order flow imbalance (OFI)
+
+### Bid-ask spread
+```{r}
+# --- Bid-Ask Spread in ticks ---
+tick_size <- 0.1  # BitMEX XBTUSD tick size
+
+quote_data_all <- quote_data_all %>%
+  mutate(spread_ticks = (askPrice - bidPrice) / tick_size)
+
+# Summary statistics
+spread_summary <- quote_data_all %>%
+  summarise(
+    avg_spread = mean(spread_ticks, na.rm = TRUE),
+    sd_spread = sd(spread_ticks, na.rm = TRUE),
+    min_spread = min(spread_ticks, na.rm = TRUE),
+    max_spread = max(spread_ticks, na.rm = TRUE)
+  )
+
+kable(spread_summary, digits = 2, caption = "Bid–Ask Spread Summary (in ticks)")
+
+```
+
+### Quote-to trade ratio
+```{r}
+# --- Aggregate ratio ---
+n_quotes <- nrow(quote_data_all)
+n_trades <- nrow(trade_data_all)
+quote_trade_ratio <- n_quotes / n_trades
+
+cat("Quote-to-trade ratio:", round(quote_trade_ratio, 2), "\n")
+
+```
+
+
 
 ## Table 1: XBTUSD 1-Minute Arrival Rate Statistics
 ```{r}
