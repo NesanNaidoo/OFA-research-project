@@ -1,24 +1,6 @@
-# 2025 Statistics-Honours-Research-Project
-## Authors
-Nesan Naidoo and Dominique Chetty
-
-## Order flow analysis of cryptocurrency markets
-This is the git repository for the research project,
-Order Flow Analysis of Crypto-currency markets. The aim of this project was to
-replicate Silyantyev(2019)'s findings for period October 1st - 23rd 2017. 
-Addtionally, we extending the analysis to the February 2024 period to 
-assess the generalisability of Silyantyev's findings.
-
-## Data
-Level I quote and trade adata for the replication period (Oct 2017) and extension period((Oct 2024) can be found in the following google drive folder [Raw Data](https://drive.google.com/drive/folders/1lcg57o-UQn3S7LSUJV1Isf9N77JYSf2I?usp=sharing).
-
-## Coding
-Coding was completed using RStudio 2024.09.0+375 "Cranberry Hibiscus" Release (c8fc7aee6dc218d5687553f9041c6b1e5ea268ff, 2024-09-16) for windows
-Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) RStudio/2024.09.0+375 Chrome/124.0.6367.243 Electron/30.4.0 Safari/537.36, Quarto 1.5.57
-
 # Order Flow Analysis of Cryptocurrency Markets
 
-A research project replicating and extending Silantyev (2019)'s order flow analysis on Bitcoin markets.
+A research project replicating and extending Silantyev (2019)'s order flow analysis on Bitcoin derivative markets.
 
 ## Authors
 
@@ -105,6 +87,19 @@ Measures net signed volume of executed trades (buy minus sell volume)
 - RStudio 2024.09.0+375 "Cranberry Hibiscus" Release
 - Quarto 1.5.57
 - R 4.x or higher
+
+### Computational Requirements
+#### Replication period:
+- **RAM**: Minimum 8GB
+- **Processor**:	Intel(R) Core(TM) i5-6300U CPU @ 2.40GHz   2.50 GHz
+- **Operating system**: Windows
+- **System type**: 64-bit operating system, x64-based processor
+
+#### Extension period:
+- **RAM**: Minimum 16GB
+- **Processor**:	13th Gen Intel(R) Core(TM) i5-13500T   1.60 GHz
+- **Operating system**: Windows
+- **System type**: 64-bit operating system, x64-based processor
 
 ### R Packages
 
@@ -312,16 +307,12 @@ Where:
 - Cross-exchange comparison
 - Longer time horizons
 - Nonlinear and machine learning models
-- High-frequency microstructure analysis
-- Market regime detection
+
 
 ## References
 
 **Primary reference**:
 Silantyev, E. (2019). Order flow analysis of cryptocurrency markets. *Digital Finance*, 1(1), 191-218.
-
-**Additional methodology**:
-- Cont, R., Kukanov, A., & Stoikov, S. (2014). The price impact of order book events. *Journal of Financial Econometrics*, 12(1), 47-88.
 
 ## License
 
@@ -336,12 +327,9 @@ Naidoo, N., & Chetty, D. (2025). Order Flow Analysis of Cryptocurrency Markets. 
 University of Cape Town.
 ```
 
-## Contact
-
-For questions about the analysis or data access, please open an issue in this repository.
 
 ## Acknowledgments
 
-- Andrew Paskaramoorthy for guidance and supervision
-- Silantyev (2019) for foundational methodology
-- BitMEX for providing historical market data
+- Andrew Paskaramoorthy for guidance and supervision on this project.
+- Silantyev (2019) for foundational methodology.
+- BitMEX for providing historical market data.
