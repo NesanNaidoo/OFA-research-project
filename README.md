@@ -94,7 +94,7 @@ Measures net signed volume of executed trades (buy minus sell volume)
 ├── OFA-Extension.qmd             # Extension analysis (Oct 2024)
 ├── OFA_Additional_Plots.qmd      # Supplementary visualizations
 ├── _data_extraction_code/
-│   ├── Data Extraction-Replication-Oct 2017.qmd
+│   ├── [Data Extraction-Replication-Oct 2017.qmd](./_data_extraction_code/Data%20Extraction-Replication-Oct%202017.qmd)
 │   └── Data Extraction-Extension-Oct 2024.qmd
 └── README.md
 ```
