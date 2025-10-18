@@ -97,7 +97,9 @@ Measures net signed volume of executed trades (buy minus sell volume)
   - [Data Extraction-Replication-Oct 2017.qmd](./_data_extraction_code/Data%20Extraction-Replication-Oct%202017.qmd)
   - [Data Extraction-Extension-Oct 2024.qmd](./_data_extraction_code/Data%20Extraction-Extension-Oct%202024.qmd)
 - [_output/](./_output/) : all results obtained in the form of plots,tables, and raw test results.
-  - [1. Replication - Oct 2017](./_output/1.Replication-Oct%202017)
+  - [1. Replication - Oct 2017](./_output/1.%20Replication%20-%20Oct%202017)
+  - [2. Extension - Oct 2024](./_output/2.%20Extension%20-%20Oct%202024)
+- [_reference_papers](./_reference_papers/): key reference papers used for this study.
 
 ## Requirements
 
