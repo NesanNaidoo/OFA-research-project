@@ -96,7 +96,8 @@ Measures net signed volume of executed trades (buy minus sell volume)
 - [_data_extraction_code/](./_data_extraction_code/): Data extraction scripts
   - [Data Extraction-Replication-Oct 2017.qmd](./_data_extraction_code/Data%20Extraction-Replication-Oct%202017.qmd)
   - [Data Extraction-Extension-Oct 2024.qmd](./_data_extraction_code/Data%20Extraction-Extension-Oct%202024.qmd)
-- README.md
+- [_output/](./_output/) : all results obtained in the form of plots,tables, and raw test results.
+  - [1. Replication - Oct 2017](./_output/1.Replication-Oct%202017)
 
 ## Requirements
 
