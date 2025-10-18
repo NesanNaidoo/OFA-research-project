@@ -1,4 +1,7 @@
 # Order Flow Analysis of Cryptocurrency Markets
+![R](https://img.shields.io/badge/Made%20with-R-276DC3?style=flat-square&logo=r&logoColor=white)
+![Quarto](https://img.shields.io/badge/Documented%20in-Quarto-4A154B?style=flat-square&logo=quarto&logoColor=white)
+![License](https://img.shields.io/badge/License-Academic-lightgrey?style=flat-square)
 
 A research project replicating and extending Silantyev (2019)'s order flow analysis of cryptocurrency markets.
 
@@ -50,6 +53,7 @@ This study examines how order book events influence cryptocurrency price movemen
 
 **Implications**: Cryptocurrency market liquidity and order flow dynamics have evolved significantly since 2017.
 
+
 ## Data
 
 **Source**: BitMEX XBTUSD perpetual contract  
@@ -65,6 +69,7 @@ This study examines how order book events influence cryptocurrency price movemen
 - **Quote data**: timestamp, bidPrice, bidSize, askPrice, askSize
 - **Trade data**: timestamp, price, size, side
 
+
 ## Methodology
 
 ### Order Flow Metrics
@@ -74,6 +79,7 @@ Measures changes in limit order book depth at bid and ask sides
 
 **Trade Flow Imbalance (TFI)**:
 Measures net signed volume of executed trades (buy minus sell volume)
+
 
 ### Analysis Framework
 
@@ -86,7 +92,6 @@ Measures net signed volume of executed trades (buy minus sell volume)
 5. **Regression analysis**: Linear models relating OFI/TFI to mid-price changes
 6. **Comparative analysis**: R² comparison across periods and metrics
 
-## Repository Structure
 
 ## Repository Structure
 
@@ -202,6 +207,7 @@ quarto::quarto_render("OFA-Extension.qmd")
 ### Key Functions 
 
 Functions used in both: [OFA-Replication.qmd](./OFA-Replication.qmd) and [OFA-Extension.qmd](./OFA-Extension.qmd)
+
 **aggregate_ofi(df, interval, tick_size)**
 - Aggregates quote data to specified time interval
 - Computes OFI and mid-price changes
