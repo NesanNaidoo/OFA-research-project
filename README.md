@@ -88,16 +88,15 @@ Measures net signed volume of executed trades (buy minus sell volume)
 
 ## Repository Structure
 
-```
-.
-├── OFA-Replication.qmd          # Replication analysis (Oct 2017)
-├── OFA-Extension.qmd             # Extension analysis (Oct 2024)
-├── OFA_Additional_Plots.qmd      # Supplementary visualizations
-├── _data_extraction_code/
-│   ├── [Data Extraction-Replication-Oct 2017.qmd](./_data_extraction_code/Data%20Extraction-Replication-Oct%202017.qmd)
-│   └── Data Extraction-Extension-Oct 2024.qmd
-└── README.md
-```
+## Repository Structure
+
+- [OFA-Replication.qmd](./OFA-Replication.qmd): Replication analysis (Oct 2017)
+- [OFA-Extension.qmd](./OFA-Extension.qmd): Extension analysis (Oct 2024)
+- [OFA_Additional_Plots.qmd](./OFA_Additional_Plots.qmd): Supplementary visualizations
+- [_data_extraction_code/](./_data_extraction_code/): Data extraction scripts
+  - [Data Extraction-Replication-Oct 2017.qmd](./_data_extraction_code/Data%20Extraction-Replication-Oct%202017.qmd)
+  - [Data Extraction-Extension-Oct 2024.qmd](./_data_extraction_code/Data%20Extraction-Extension-Oct%202024.qmd)
+- README.md
 
 ## Requirements
 
