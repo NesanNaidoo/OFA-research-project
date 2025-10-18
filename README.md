@@ -7,6 +7,24 @@ A research project replicating and extending Silantyev (2019)'s order flow analy
 **Nesan Naidoo** and **Dominique Chetty**  
 Statistics Honours Research Project, 2025
 
+## Table of Contents
+1. [Overview](#overview)
+2. [Key Findings](#key-findings)
+3. [Data](#data)
+4. [Methodology](#methodology)
+5. [Repository Structure](#repository-structure)
+6. [Requirements](#requirements)
+7. [Usage](#usage)
+8. [Key Results Summary](#key-results-summary)
+9. [Visualizations Generated](#visualizations-generated)
+10. [Technical Notes](#technical-notes)
+11. [Comparison with Silantyev (2019)](#comparison-with-silantyev-2019)
+12. [Limitations](#limitations)
+13. [Future Research Directions](#future-research-directions)
+14. [References](#references)
+15. [Citation](#citation)
+16. [Acknowledgments](#acknowledgments)
+
 ## Overview
 
 This study examines how order book events influence cryptocurrency price movements through Order Flow Imbalance (OFI) and Trade Flow Imbalance (TFI) metrics.
@@ -314,9 +332,6 @@ Where:
 **Primary reference**:
 Silantyev, E. (2019). Order flow analysis of cryptocurrency markets. *Digital Finance*, 1(1), 191-218.
 
-## License
-
-Academic research project. All rights reserved.
 
 ## Citation
 
