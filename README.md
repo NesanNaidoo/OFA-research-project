@@ -1,6 +1,6 @@
 # Order Flow Analysis of Cryptocurrency Markets
 
-A research project replicating and extending Silantyev (2019)'s order flow analysis on Bitcoin derivative markets.
+A research project replicating and extending Silantyev (2019)'s order flow analysis of cryptocurrency markets.
 
 ## Authors
 
@@ -163,7 +163,7 @@ install.packages(c("dplyr", "tidyr", "data.table", "lubridate",
 
 ### Data Extraction
 
-**For replication period (2017)**:
+**For replication period (2017)**: [Data Extraction-Replication-Oct 2017.qmd](./_data_extraction_code/Data%20Extraction-Replication-Oct%202017.qmd)
 
 ```r
 # Downloads data from BitMEX S3 bucket
@@ -172,7 +172,7 @@ source("_data_extraction_code/Data Extraction-Replication-Oct 2017.qmd")
 #          XBTUSD_trades_20171001_20171023.csv
 ```
 
-**For extension period (2024)**:
+**For extension period (2024)**: [Data Extraction-Extension-Oct 2024.qmd](./_data_extraction_code/Data%20Extraction-Extension-Oct%202024.qmd)
 
 ```r
 # Reads compressed local data files
@@ -183,7 +183,7 @@ source("_data_extraction_code/Data Extraction-Extension-Oct 2024.qmd")
 
 ### Running Analysis
 
-**Replication study**:
+**Replication study**: [OFA-Replication.qmd](./OFA-Replication.qmd)
 
 ```r
 # Open OFA-Replication.qmd in RStudio
@@ -191,7 +191,7 @@ source("_data_extraction_code/Data Extraction-Extension-Oct 2024.qmd")
 quarto::quarto_render("OFA-Replication.qmd")
 ```
 
-**Extension study**:
+**Extension study**: [OFA-Extension.qmd](./OFA-Extension.qmd)
 
 ```r
 # Open OFA-Extension.qmd in RStudio
@@ -199,8 +199,9 @@ quarto::quarto_render("OFA-Replication.qmd")
 quarto::quarto_render("OFA-Extension.qmd")
 ```
 
-### Key Functions
+### Key Functions 
 
+Functions used in both: [OFA-Replication.qmd](./OFA-Replication.qmd) and [OFA-Extension.qmd](./OFA-Extension.qmd)
 **aggregate_ofi(df, interval, tick_size)**
 - Aggregates quote data to specified time interval
 - Computes OFI and mid-price changes
