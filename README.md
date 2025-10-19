@@ -163,7 +163,7 @@ Where:
 
 - [OFA-Replication.qmd](./OFA-Replication.qmd): Replication analysis (Oct 2017)
 - [OFA-Extension.qmd](./OFA-Extension.qmd): Extension analysis (Oct 2024)
-- [OFA_Additional_Plots.qmd](./OFA_Additional_Plots.qmd): Supplementary visualizations
+- [OFA_Comparison_Plots.qmd](./OFA_Comparison_Plots.qmd): Supplementary visualization
 - [_data_extraction_code/](./_data_extraction_code/): Data extraction scripts
   - [Data Extraction-Replication-Oct 2017.qmd](./_data_extraction_code/Data%20Extraction-Replication-Oct%202017.qmd)
   - [Data Extraction-Extension-Oct 2024.qmd](./_data_extraction_code/Data%20Extraction-Extension-Oct%202024.qmd)
@@ -323,7 +323,7 @@ Both OFI and TFI series tested stationary across all intervals using:
 | 10 min   | 0.03%  | 21.91% |
 | 1 hour   | 0.96%  | 27.48% |
 
-
+Code available in :  [OFA_Comparison_Plots.qmd](./OFA_Comparison_Plots.qmd)
 <img width="496" height="306" alt="Overall R squared comparison" src="https://github.com/user-attachments/assets/220a5558-4521-41e6-9213-2de73b82859f" />
 
 
