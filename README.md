@@ -324,6 +324,7 @@ Both OFI and TFI series tested stationary across all intervals using:
 | 1 hour   | 0.96%  | 27.48% |
 
 Code available in :  [OFA_Comparison_Plots.qmd](./OFA_Comparison_Plots.qmd)
+
 <img width="496" height="306" alt="Overall R squared comparison" src="https://github.com/user-attachments/assets/220a5558-4521-41e6-9213-2de73b82859f" />
 
 
