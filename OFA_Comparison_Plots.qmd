@@ -1,0 +1,60 @@
+---
+title: "Order Flow Analysis Comparison Plot"
+author: "N.Naidoo, D.Chetty"
+format: pdf
+---
+
+# $R^2$ Comparison Plot
+
+```{r}
+# required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# data frame
+k <- c('1 s', '10 s', '1 min', '5 min', '10 min', '1 h')
+ofi_2017 <- c(7.40, 40.97, 55.43, 52.09, 49.76, 51.31)
+ofi_2024 <- c(25.21, 20.86, 8.76, 0.84, 0.03, 0.96)
+tfi_2017 <- c(13.32, 37.53, 58.56, 68.95, 70.74, 75.16)
+tfi_2024 <- c(12.06, 11.98, 16.22, 20.73, 21.91, 27.48)
+
+# Reshape data to long format for better plotting
+data_long <- data.frame(
+  k = factor(rep(k, 4), levels = k),
+  value = c(ofi_2017, ofi_2024, tfi_2017, tfi_2024),
+  type = rep(c("OFI", "OFI", "TFI", "TFI"), each = 6),
+  year = rep(c("2017", "2024", "2017", "2024"), each = 6),
+  group = rep(c("OFI 2017", "OFI 2024", "TFI 2017", "TFI 2024"), each = 6)
+)
+
+#  plot
+ggplot(data_long, aes(x = k, y = value, group = group, color = group, linetype = group)) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  scale_color_manual(
+    name = NULL,
+    values = c("OFI 2017" = "royalblue", "OFI 2024" = "royalblue", 
+               "TFI 2017" = "springgreen2", "TFI 2024" = "springgreen2")
+  ) +
+  scale_linetype_manual(
+    name = NULL,
+    values = c("OFI 2017" = "solid", "OFI 2024" = "dashed", 
+               "TFI 2017" = "solid", "TFI 2024" = "dashed")
+  ) +
+  labs(
+    x = "Sampling Period (k)",
+    y = expression("R"^2 ~ "%")
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = c(0.05, 0.95),  
+    legend.justification = c(0, 1),   
+    legend.direction = "vertical",
+    legend.box.background = element_rect(color = "black", fill = "white"),
+    legend.margin = margin(4, 6, 4, 6),
+    legend.key.width = unit(1.2, "cm"),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(hjust = 0.5)
+  )
+```

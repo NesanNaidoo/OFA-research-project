@@ -15,14 +15,14 @@ library(utils)
 quote_folder <- file.path(".", "Quote Data")
 trade_folder <- file.path(".", "Trade Data")
 
-# General function to load and filter data by type
+# function to load and filter data by type
 get_data <- function(date.str, type = c("quote", "trade")) {
   type <- match.arg(type)
   
-  # Choose correct folder
+  # choose correct folder
   folder <- if (type == "quote") quote_folder else trade_folder
   
-  # Build filename: e.g. "20241001.csv.gz"
+  # build filename: e.g. "20241001.csv.gz"
   filename <- file.path(folder, paste0(gsub("-", "", date.str), ".csv.gz"))
   
   if (!file.exists(filename)) {
@@ -30,7 +30,7 @@ get_data <- function(date.str, type = c("quote", "trade")) {
     return(NULL)
   }
   
-  # Read compressed CSV and filter
+  # read compressed CSV and filter
   df <- read_csv(filename, col_types = cols())
   df <- filter(df, symbol == "XBTUSD")
   

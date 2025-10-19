@@ -1,5 +1,5 @@
 ---
-title: "Order Flow Analysis"
+title: "Order Flow Analysis-Extension period (October 2024)"
 author: "N.Naidoo, D. Chetty"
 format: pdf
 ---
@@ -7,14 +7,14 @@ format: pdf
 
 ## Required libraries
 ```{r}
-library(dplyr) # pipe operator
-library(stringr) # string replace
+library(dplyr) 
+library(stringr) 
 library(lubridate)
-library(ggplot2) #plots
-library(zoo) # resampling if needed
-library(tseries) # ADF + KPSS tests
+library(ggplot2) 
+library(zoo) 
+library(tseries) 
 library(tidyr)
-library(knitr) # display tables
+library(knitr) 
 library(data.table)
 library(lubridate)
 library(urca)
@@ -26,27 +26,25 @@ library(lmtest)
 
 ## Loading in data
 ```{r}
-quote_data_all<-read.csv("XBTUSD_quotes_20241001_20241031.csv",header = TRUE)
-trade_data_all<-read.csv("XBTUSD_trades_20241001_20241031.csv",header = TRUE)
-# save(quote_data_all,trade_data_all, file = "trade_and_quote_data.RData")
-# load("trade_and_quote_data.RData") For REMOTE Use only as file is too big to put on github so do not commit.
+quote_data<-read.csv("XBTUSD_quotes_20241001_20241031.csv",header = TRUE)
+trade_data<-read.csv("XBTUSD_trades_20241001_20241031.csv",header = TRUE)
 ```
 
 ## Cleaning and formatting data 
 ```{r}
 ## Cleaning data so it matches data description of Silyantyev(2019)
-quote_data_all<-quote_data_all |> select(timestamp,bidPrice,bidSize,askPrice,askSize) 
-quote_data_all<-quote_data_all |> rename(bidVolume=bidSize,askVolume=askSize)
+quote_data<-quote_data |> select(timestamp,bidPrice,bidSize,askPrice,askSize) 
+quote_data<-quote_data |> rename(bidVolume=bidSize,askVolume=askSize)
 
 ## Removing D character in csv files for timestamp column so it can be parsed correctly
-quote_data_all <- quote_data_all |>
+quote_data <- quote_data |>
   mutate(
     timestamp = str_replace(timestamp, "D", " "),
   )
 
-trade_data_all<-trade_data_all |> select(timestamp,price,size,side)
-trade_data_all<-trade_data_all |> rename(Volume=size)
-trade_data_all <- trade_data_all |>
+trade_data<-trade_data |> select(timestamp,price,size,side)
+trade_data<-trade_data |> rename(Volume=size)
+trade_data <- trade_data |>
   mutate(
     timestamp = str_replace(timestamp, "D", " "),
   )
@@ -58,14 +56,14 @@ trade_data_all <- trade_data_all |>
 
 ## Calculating mid price
 ## Format timestamp so it can be parsed correctly,ensuring no loss of information
-quote_data_all <- quote_data_all |>
+quote_data <- quote_data |>
   mutate(
     timestamp = as.POSIXct(timestamp, format = "%Y-%m-%d %H:%M:%OS", tz = "UTC"),
     mid_price = (bidPrice + askPrice) / 2
   )
 
 # Calculating OFI 
-quote_data_all <- quote_data_all |>
+quote_data <- quote_data |>
   arrange(timestamp) |>
   mutate(
     prev_bidPrice = lag(bidPrice),
@@ -94,7 +92,7 @@ quote_data_all <- quote_data_all |>
 ## Trade data: Additional columns- timestamp,signed_volume 
 ```{r}
 #Format trade data for tfi
-trade_data_all <- trade_data_all  |> 
+trade_data <- trade_data  |> 
   mutate(
     timestamp = as.POSIXct(timestamp, format = "%Y-%m-%d %H:%M:%OS", tz = "UTC"),
     signed_volume = if_else(side == "Buy", Volume, -Volume) 
@@ -106,7 +104,7 @@ trade_data_all <- trade_data_all  |>
 ## Functions for OFI vs Mid-price and TFI vs Mid-price scatter plots
 ```{r}
 # Function to Aggregate to Intervals
-# Resample quotes to get mid-price change and OFI per interval
+# to get mid-price change and OFI per interval
 
 aggregate_ofi <- function(df, interval = "10 secs", tick_size = 0.1) {
   df |>
@@ -121,7 +119,7 @@ aggregate_ofi <- function(df, interval = "10 secs", tick_size = 0.1) {
     drop_na()
 }
 
-# Resample trades to get TFI per interval
+#  to get TFI per interval
 aggregate_tfi <- function(trades, quotes, interval = "10 secs", tick_size = 0.1) {
   tfi <- trades |>
     mutate(interval_time = floor_date(timestamp, unit = interval)) |>
@@ -142,7 +140,7 @@ aggregate_tfi <- function(trades, quotes, interval = "10 secs", tick_size = 0.1)
 
 ## Function for OFI and TFI Regression Analysis
 ```{r}
-# function to run lm an extraxt relevant stats
+# function to run lm an extract relevant stats
 run_ols <- function(df, xvar, yvar) {
   formula <- as.formula(paste(yvar, "~", xvar))
   model <- lm(formula, data = df)
@@ -159,8 +157,8 @@ run_ols <- function(df, xvar, yvar) {
 
 
 
-# 5.1  Statistical properties
-## 5.1.1 Prices
+# Statistical properties
+## Prices
 
 ### Figure 1: Mid-price over time (Price chart)
 ```{r}
@@ -170,7 +168,7 @@ run_ols <- function(df, xvar, yvar) {
 # Plot mid-price over time for the selected day.
 # 15th October 2024
 # Prepare mid-price data for 15 Oct 2024
-quote_data_day <- quote_data_all |>
+quote_data_day <- quote_data |>
   mutate(timestamp = ymd_hms(timestamp, tz = "UTC")) |>
   filter(as_date(timestamp) == as_date("2024-10-15")) |>
   mutate(mid_price = (bidPrice + askPrice) / 2)
@@ -415,10 +413,6 @@ summary(quote_data_day$mid_price_change)
 ### Dickey-Fuller and KPSS test of stationarity for Price series 
 ```{r}
 #To examine stationarity of the differenced price series, augmented Dickey–Fuller (ADF) and KPSS tests are conducted or all variants of k in ΔPk variable. The tests confirm that price series are stationary  for every sampling period k at 1% significance level.
-library(dplyr)
-library(lubridate)
-library(urca)
-library(knitr)
 
 intervals <- c("1 sec", "10 sec","1 min", "5 min", "10 min", "1 hour")
 
@@ -467,7 +461,7 @@ perform_stationarity_urca <- function(series) {
 price_stationarity_urca <- data.frame()
 
 for (int in intervals) {
-  agg <- quote_data_all %>%
+  agg <- quote_data %>%
     mutate(interval_time = floor_date(timestamp, unit = int)) %>%
     group_by(interval_time) %>%
     summarise(mid_price = mean(mid_price, na.rm = TRUE), .groups = "drop")
@@ -495,18 +489,18 @@ kable(price_stationarity_urca, digits = 6,
 
 
 
-# 5.2  Order flow imbalance (OFI)
+#  Order flow imbalance (OFI)
 
 ### Bid-ask spread
 ```{r}
 # --- Bid-Ask Spread in ticks ---
 tick_size <- 0.1  # BitMEX XBTUSD tick size
 
-quote_data_all <- quote_data_all %>%
+quote_data <- quote_data %>%
   mutate(spread_ticks = (askPrice - bidPrice) / tick_size)
 
 # Summary statistics
-spread_summary <- quote_data_all %>%
+spread_summary <- quote_data %>%
   summarise(
     avg_spread = mean(spread_ticks, na.rm = TRUE),
     sd_spread = sd(spread_ticks, na.rm = TRUE),
@@ -521,8 +515,8 @@ kable(spread_summary, digits = 2, caption = "Bid–Ask Spread Summary (in ticks)
 ### Quote-to trade ratio
 ```{r}
 # --- Aggregate ratio ---
-n_quotes <- nrow(quote_data_all)
-n_trades <- nrow(trade_data_all)
+n_quotes <- nrow(quote_data)
+n_trades <- nrow(trade_data)
 quote_trade_ratio <- n_quotes / n_trades
 
 cat("Quote-to-trade ratio:", round(quote_trade_ratio, 2), "\n")
@@ -534,7 +528,7 @@ cat("Quote-to-trade ratio:", round(quote_trade_ratio, 2), "\n")
 ## Table 1: XBTUSD 1-Minute Arrival Rate Statistics
 ```{r}
 
-arrival_rates <- trade_data_all |>
+arrival_rates <- trade_data |>
   mutate(
     timestamp = as.POSIXct(timestamp, format = "%Y-%m-%d %H:%M:%OS", tz = "UTC"),
     second_bucket = floor_date(timestamp, unit = "1 min")
@@ -559,71 +553,6 @@ print(summary_table1)
 
 
 ```
-## XBTUSD 1-Minute Arrival Rate Statistics - Volume per minute
-```{r}
-volume_summary_crypto <- trade_data_all |>
-  mutate(
-    minute_bucket = floor_date(timestamp, unit = "1 min")
-  ) |>
-  group_by(minute_bucket) |>
-  summarise(total_volume = sum(Volume)) |>
-  ungroup() |>
-  summarise(
-    Mean = mean(total_volume),
-    SD = sd(total_volume),
-    Min = min(total_volume),
-    `25%` = quantile(total_volume, 0.25),
-    `50%` = median(total_volume),
-    `75%` = quantile(total_volume, 0.75),
-    Max = max(total_volume)
-  )
-print(volume_summary_crypto)
-```
-
-
-## S&P 500 ETF index arrival statistics - volume per minute
-```{r}
-# Read the Excel file
-spy_data <- read_excel("S&P500 ETF Trust_October 2024.xlsx", sheet = "Sheet 1")
-
-# Extract the historical price data section (starting from "Local Date" header)
-# Find the starting row of the historical data
-start_row <- which(spy_data[[1]] == "Local Date") + 1
-
-# Read the data properly (adjust range as needed based on your file structure)
-spy_history <- read_excel("S&P500 ETF Trust_October 2024.xlsx", sheet = "Sheet 1", 
-                         skip = start_row - 1, col_names = TRUE)
-
-# Clean up the column names and select relevant columns
-colnames(spy_history) <- c("Local Date", "Local Time", "Close", "Open", "Volume", "V6", "V7", "V8", "V9", "V10", "V11", "V12", "V13")
-
-# Filter out empty rows and create proper timestamp
-spy_trade_data <- spy_history |>
-  filter(!is.na(`Local Date`) & !is.na(Volume) & Volume > 0) |>
-  mutate(
-    timestamp = as.POSIXct(paste(`Local Date`, `Local Time`), 
-                          format = "%Y-%m-%d %H:%M:%S", tz = "UTC"),
-    Volume = as.numeric(Volume)
-  ) |>
-  select(timestamp, Volume) |>
-  arrange(timestamp)
-
-
-# Create summary table (same format as your crypto code)
-summary_table_spy <- spy_trade_data |>
-  summarise(
-    Mean = mean(Volume, na.rm = TRUE),
-    SD = sd(Volume, na.rm = TRUE),
-    Min = min(Volume, na.rm = TRUE),
-    `25%` = quantile(Volume, 0.25, na.rm = TRUE),
-    `50%` = median(Volume, na.rm = TRUE),
-    `75%` = quantile(Volume, 0.75, na.rm = TRUE),
-    Max = max(Volume, na.rm = TRUE)
-  )
-
-print(summary_table_spy)
-```
-
 
 ## Figure 2: ACF of 10-Second Arrival Counts
 Count the number of quote updates per 10-second bucket.
@@ -637,7 +566,7 @@ library(lubridate)
 library(ggplot2)
 
 # Count quote updates in 10-second intervals
-arrival_10s <- quote_data_all |>
+arrival_10s <- quote_data |>
   mutate(ten_sec_bucket = floor_date(timestamp, unit = "10 seconds")) |>
   count(ten_sec_bucket, name = "updates_per_10s")
 
@@ -683,14 +612,10 @@ ggplot(acf_df, aes(x = Lag, y = ACF)) +
 
 ## Time series Update Arrival Volumes
 ```{r}
-# Load required packages
-library(dplyr)
-library(lubridate)
-library(ggplot2)
-library(scales)
+
 
 # Aggregate quote updates into 10-second intervals
-arrival_10s <- quote_data_all |>
+arrival_10s <- quote_data |>
   mutate(ten_sec_bucket = floor_date(timestamp, unit = "10 seconds")) |>
   count(ten_sec_bucket, name = "updates_per_10s")
 
@@ -823,7 +748,7 @@ perform_ofi_tfi_tests <- function(series) {
 ofi_stationarity_urca <- data.frame()
 
 for (int in intervals) {
-  ofi_agg <- aggregate_ofi(quote_data_all, interval = int)
+  ofi_agg <- aggregate_ofi(quote_data, interval = int)
   
   test_results <- perform_ofi_tfi_tests(ofi_agg$OFI)
   test_results$Interval <- int
@@ -914,7 +839,7 @@ perform_residual_diagnostics <- function(series, interval) {
 ofi_stationarity_urca <- data.frame()
 
 for (int in intervals) {
-  ofi_agg <- aggregate_ofi(quote_data_all, interval = int)
+  ofi_agg <- aggregate_ofi(quote_data, interval = int)
   
   # Stationarity tests
   test_results <- perform_ofi_tests(ofi_agg$OFI)
@@ -937,7 +862,147 @@ kable(ofi_stationarity_urca, digits = 5,
 ```
 
 
-# 5.3 Trade flow imbalance (TFI)(Wrong package)
+## Figure 3: XBTUSD 10-s OFI ACF
+```{r}
+#| fig-width: 5
+#| fig-height: 5
+# Aggregate into 10-second buckets
+ofi_10s <- quote_data |>
+  mutate(interval_time = floor_date(timestamp, unit = "10 sec")) |>
+  group_by(interval_time) |>
+  summarise(OFI = sum(OFI, na.rm = TRUE)) |>
+  ungroup()
+
+#  ACF
+acf_ofi_result <- acf(ofi_10s$OFI, lag.max = 9, plot = FALSE)
+
+# Format for plot
+acf_ofi_df <- data.frame(
+  Lag = as.numeric(acf_ofi_result$lag),
+  ACF = as.numeric(acf_ofi_result$acf)
+)
+
+# Confidence interval
+N_ofi <- length(ofi_10s$OFI)
+conf_bound <- 0.05
+
+# Plot
+ggplot(acf_ofi_df, aes(x = Lag, y = ACF)) +
+  geom_bar(stat = "identity", fill = "steelblue", width = 0.4) +
+  geom_hline(yintercept = c(conf_bound, -conf_bound), linetype = "dashed", color = "red",size=0.7) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black") +
+  scale_x_continuous(
+    breaks = 0:9,
+    limits = c(-0.5, 9.5)
+  ) +
+  scale_y_continuous(
+    breaks = seq(-0.1, 1, by = 0.1),
+    limits = c(-0.1, 1.05),
+    expand = c(0, 0)
+  ) +
+  labs(
+    title = "OFI 10-Second ACF", 
+    x = "Lag",
+    y = "Autocorrelation"
+  ) +
+  theme_minimal()+
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)  
+  )
+```
+
+
+## Figure 4: XBTUSD 1-s OFI vs Mid-price change
+```{r}
+# Aggregate using function
+ofi.1s <- aggregate_ofi(
+  quote_data,
+  interval = "1 second",
+  tick_size = 0.1
+)
+
+# Plot
+ggplot(ofi.1s, aes(x = OFI, y = mid_price_change)) +
+  geom_point(alpha = 0.5, size = 0.8, color = "steelblue") +
+  labs(
+    title = "XBTUSD 1-Second OFI",
+    x = expression(OFI~"("*10^7*")"),
+    y = "Mid-Price Change"
+  ) +
+  scale_x_continuous(
+    limits = c(-0.6e7, 0.8e7),
+    breaks = seq(-0.6e7, 0.8e7, by = 0.2e7),
+    labels = function(x) x / 1e7
+  ) +
+  theme_minimal() +
+  theme(
+    panel.ontop = TRUE,  
+    panel.grid.major = element_line(color = "grey80", linewidth = 0.3),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)
+  )
+
+```
+
+## Figure 5: XBTUSD 1-min OFI vs Mid-price change
+```{r}
+#| fig-height: 5
+#| fig-width: 7
+# Use your aggregation function
+ofi.1m <- aggregate_ofi(
+  df = quote_data,
+  interval = "1 minute",   
+  tick_size = 0.1         
+)
+
+
+# Scatter plot for 1-minute OFI
+ggplot(ofi.1m, aes(x = OFI, y = mid_price_change)) +
+  geom_point(alpha = 0.3, size = 0.8, color = "steelblue") +
+  scale_x_continuous(
+    limits = c(-0.5e7, 1.5e7),
+    breaks = seq(-0.5e7, 1.5e7, by = 0.5e7),
+    labels = function(x) x / 1e7
+  ) +
+  scale_y_continuous(
+    limits = c(-1250, 750),
+    breaks = seq(-1250, 750, by = 250)
+  ) +
+  
+  # Labels
+  labs(
+    title = "XBTUSD 1-Minute OFI",
+    x = expression(OFI~"("*10^7*")"),
+    y = "Mid-Price Change "
+  ) +
+  
+  theme_minimal() +
+  theme(
+    panel.ontop = TRUE,  # This makes grid lines draw over data
+    panel.grid.major = element_line(color = "grey80", linewidth = 0.1),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    plot.title = element_text(size = 10, face = "plain", hjust = 0.5)
+  )
+
+
+
+```
+
+
+
+
+
+# Trade flow imbalance (TFI)(Wrong package)
 ## ADF and KPSS stationarity tests
 ```{r}
 # Define the intervals to test
@@ -973,7 +1038,7 @@ tfi_stationarity_results <- data.frame(
 # Loop through each interval and perform tests
 for (int in intervals) {
   # Aggregate TFI for the current interval
-  tfi_data <- aggregate_tfi(trade_data_all, quote_data_all, interval = int)
+  tfi_data <- aggregate_tfi(trade_data, quote_data, interval = int)
   
   # Extract TFI series
   tfi_series <- tfi_data$TFI
@@ -1008,7 +1073,7 @@ kable(tfi_stationarity_results, digits = 4,
 tfi_stationarity_urca <- data.frame()
 
 for (int in intervals) {
-  tfi_agg <- aggregate_tfi(trade_data_all, quote_data_all, interval = int)
+  tfi_agg <- aggregate_tfi(trade_data, quote_data, interval = int)
   
   test_results <- perform_ofi_tfi_tests(tfi_agg$TFI)
   test_results$Interval <- int
@@ -1028,7 +1093,7 @@ kable(tfi_stationarity_urca, digits = 5,
 #| fig-width: 5
 #| fig-height: 5
 # Step 1: Aggregate TFI into 10-second intervals
-tfi_10s <- aggregate_tfi(trade_data_all, quote_data_all)
+tfi_10s <- aggregate_tfi(trade_data, quote_data)
 
 # Compute ACF
 acf_tfi_result <- acf(tfi_10s$TFI, lag.max = 9, plot = FALSE)
@@ -1078,7 +1143,7 @@ ggplot(acf_tfi_df, aes(x = Lag, y = ACF)) +
 #| fig-width: 6
 #| fig-height: 5
 # Filter for 1-minute interval
-one_min_results <- aggregate_tfi(trade_data_all, quote_data_all, interval = "1 min") 
+one_min_results <- aggregate_tfi(trade_data, quote_data, interval = "1 min") 
 
 # Run OLS regression and store results
 ols_results <- run_ols(one_min_results, "TFI", "mid_price_change")
@@ -1135,8 +1200,8 @@ intervals <- c("1 sec", "10 secs", "1 min", "5 mins", "10 mins", "1 hour")
 results <- data.frame()
 
 for (intv in intervals) {
-  ofi_data <- aggregate_ofi(quote_data_all, interval = intv)
-  tfi_data <- aggregate_tfi(trade_data_all, quote_data_all, interval = intv)
+  ofi_data <- aggregate_ofi(quote_data, interval = intv)
+  tfi_data <- aggregate_tfi(trade_data, quote_data, interval = intv)
 
   ofi_stats <- run_ols(ofi_data, "OFI", "mid_price_change")
   tfi_stats <- run_ols(tfi_data, "TFI", "mid_price_change")
@@ -1159,16 +1224,7 @@ for (intv in intervals) {
 print(results)
 ```
 
-## Dickey-fuller and KPSS tests
-```{r}
-#Stationarity test
-adf.test(ofi_data$OFI)
-kpss.test(ofi_data$OFI, null = "Level")
 
-adf.test(tfi_data$TFI)
-kpss.test(tfi_data$TFI, null = "Level")
-
-```
 
 # Extra
 ##  XBTUSD 1-hour OFI vs Mid-price change
@@ -1177,7 +1233,7 @@ kpss.test(tfi_data$TFI, null = "Level")
 #| fig-width: 7
 # Use your aggregation function
 ofi_vs_price_1m <- aggregate_ofi(
-  df = quote_data_all,
+  df = quote_data,
   interval = "1 hour",   # match Figure 5's granularity
   tick_size = 0.1          # your identified tick size
 )
@@ -1228,7 +1284,7 @@ ggplot(ofi_vs_price_1m, aes(x = OFI, y = mid_price_change)) +
 #| fig-width: 6
 #| fig-height: 5
 # Filter for 1-minute interval
-one_min_results <- aggregate_tfi(trade_data_all, quote_data_all, interval = "1 sec") 
+one_min_results <- aggregate_tfi(trade_data, quote_data, interval = "1 sec") 
 
 # Run OLS regression and store results
 ols_results <- run_ols(one_min_results, "TFI", "mid_price_change")
@@ -1281,7 +1337,7 @@ ggplot(one_min_results, aes(x = TFI, y = mid_price_change)) +
 #| fig-width: 6
 #| fig-height: 5
 # Filter for 1-minute interval
-one_min_results <- aggregate_tfi(trade_data_all, quote_data_all, interval = "1 hour") 
+one_min_results <- aggregate_tfi(trade_data, quote_data, interval = "1 hour") 
 
 # Run OLS regression and store results
 ols_results <- run_ols(one_min_results, "TFI", "mid_price_change")
@@ -1331,7 +1387,7 @@ ggplot(one_min_results, aes(x = TFI, y = mid_price_change)) +
 # Time Series OFI
 ```{r}
 # Aggregate OFI and TFI with 10-second intervals
-ofi_data <- aggregate_ofi(quote_data_all, interval = "10 secs", tick_size = 0.1)
+ofi_data <- aggregate_ofi(quote_data, interval = "10 secs", tick_size = 0.1)
 library(scales)
 # Time series plot of OFI
 p1 <- ggplot(ofi_data, aes(x = interval_time, y = OFI / 1e6)) +
@@ -1356,7 +1412,7 @@ p1
 
 # Time Series TFI
 ```{r}
-tfi_data <- aggregate_tfi(trade_data_all, quote_data_all, interval = "10 secs", tick_size = 0.1)
+tfi_data <- aggregate_tfi(trade_data, quote_data, interval = "10 secs", tick_size = 0.1)
 # Time series plot of TFI
 p2 <- ggplot(tfi_data, aes(x = interval_time, y = TFI / 1e6)) +
   geom_line(color = "steelblue") +
