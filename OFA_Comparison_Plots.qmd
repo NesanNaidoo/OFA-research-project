@@ -58,3 +58,36 @@ ggplot(data_long, aes(x = k, y = value, group = group, color = group, linetype =
     plot.title = element_text(hjust = 0.5)
   )
 ```
+
+# Box plot with log scale
+```{r}
+library(ggplot2)
+
+# Data: one row per instrument
+df_box <- data.frame(
+  Instrument = c("XBTUSD (2017)", "Silantyev(2019)", "ESM16", "XBTUSD(2024)"),
+  Min = c(1, 0, 0, 1),
+  Q1 = c(2, 1, 4, 3),
+  Median = c(4, 3, 20, 9),
+  Q3 = c(7, 7, 64, 24),
+  Max = c(48, 48, 2387, 342)
+)
+#: 1st Order Arrival Rates by Instrument
+# Colored boxplot with transparent fill and distinct outline
+ggplot(df_box, aes(x=Instrument)) +
+  geom_boxplot(
+    aes(lower=Q1, middle=Median, upper=Q3, ymin=Min, ymax=Max,
+        fill=Instrument, color=Instrument),
+    stat="identity", width=0.6, alpha=0.3, size=1.2  # alpha=fill transparency, size=border thickness
+  ) +
+  scale_y_log10() +
+  labs(title="",
+       y="Arrival Rate (log scale)", x="Instrument/Period") +
+  theme_minimal() +
+  theme(legend.position="none")
+
+
+
+```
+
+
