@@ -5,14 +5,6 @@
 
 A research project replicating and extending Silantyev (2019)'s order flow analysis of cryptocurrency markets.
 
-<details>
-  <summary><strong>Results (click to expand)</strong> </summary>
-    Thus is a test
-
-</details>
-
-
-
 
 ## Authors
 
