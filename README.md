@@ -5,6 +5,12 @@
 
 A research project replicating and extending Silantyev (2019)'s order flow analysis of cryptocurrency markets.
 
+<details>
+  <summary><h3> Test — Methods</h3> </summary>
+
+
+</details>
+
 ## Authors
 
 **Nesan Naidoo** and **Dominique Chetty**  
