@@ -5,12 +5,6 @@
 
 A research project replicating and extending Silantyev (2019)'s order flow analysis of cryptocurrency markets.
 
-<details>
-  <summary><strong>Results (click to expand)</strong> </summary>
-    Thus is a test
-
-</details>
-
 
 
 
@@ -18,8 +12,9 @@ A research project replicating and extending Silantyev (2019)'s order flow analy
 
 **Nesan Naidoo** and **Dominique Chetty**  
 Statistics Honours Research Project, 2025
-
-## Table of Contents
+<details>
+  <summary><strong> Table of Contents</strong></summary>
+   
 1. [Overview](#overview)
 2. [Key Findings](#key-findings)
 3. [Data](#data)
@@ -50,6 +45,7 @@ Statistics Honours Research Project, 2025
 14. [References](#references)
 15. [Citation](#citation)
 16. [Acknowledgments](#acknowledgments)
+</details>
 
 
 ## Overview
