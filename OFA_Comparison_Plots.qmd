@@ -29,6 +29,7 @@ data_long <- data.frame(
 )
 
 #  plot
+# For the line plot:
 ggplot(data_long, aes(x = k, y = value, group = group, color = group, linetype = group)) +
   geom_line(size = 1) +
   geom_point(size = 2) +
@@ -43,11 +44,14 @@ ggplot(data_long, aes(x = k, y = value, group = group, color = group, linetype =
                "TFI 2017" = "solid", "TFI 2024" = "dashed")
   ) +
   labs(
+    title=expression("R"^2~"comparison of OFI vs. TFI"),
     x = "Sampling Period (k)",
     y = expression("R"^2 ~ "%")
   ) +
   theme_minimal() +
   theme(
+    panel.border = element_rect(color = "black", fill = NA, size = 0.7),  # Add this line
+    axis.title.y = element_text(angle = 0, vjust = 0.5),  # Add this line
     legend.position = c(0.05, 0.95),  
     legend.justification = c(0, 1),   
     legend.direction = "vertical",
@@ -61,9 +65,6 @@ ggplot(data_long, aes(x = k, y = value, group = group, color = group, linetype =
 
 # Box plot with log scale
 ```{r}
-library(ggplot2)
-
-# Data: one row per instrument
 df_box <- data.frame(
   Instrument = c("XBTUSD (2017)", "Silantyev(2019)", "ESM16", "XBTUSD(2024)"),
   Min = c(1, 0, 0, 1),
@@ -72,22 +73,255 @@ df_box <- data.frame(
   Q3 = c(7, 7, 64, 24),
   Max = c(48, 48, 2387, 342)
 )
-#: 1st Order Arrival Rates by Instrument
-# Colored boxplot with transparent fill and distinct outline
+
 ggplot(df_box, aes(x=Instrument)) +
   geom_boxplot(
     aes(lower=Q1, middle=Median, upper=Q3, ymin=Min, ymax=Max,
         fill=Instrument, color=Instrument),
-    stat="identity", width=0.6, alpha=0.3, size=1.2  # alpha=fill transparency, size=border thickness
+    stat="identity", width=0.6, alpha=0.3, size=1.2,
+    fatten=1  
   ) +
   scale_y_log10() +
   labs(title="",
        y="Arrival Rate (log scale)", x="Instrument/Period") +
   theme_minimal() +
-  theme(legend.position="none")
+  theme(
+    legend.position="none",
+    panel.border = element_rect(color = "black", fill = NA, size = 0.7)  # Add border
+  )
 
 
 
+```
+
+# Alpha and betas- Separate Plots
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Data
+k <- c('1 s', '10 s', '1 min', '5 min', '10 min', '1 h')
+
+# Alpha values
+alpha_ofi_2017 <- c(0.0013, -0.0355, -0.2776, -0.8511, -1.3485, -6.1830)
+alpha_ofi_2024 <- c(-0.3733, -1.7360, -3.8186, 2.5649, 13.9163, 127.9933)
+alpha_tfi_2017 <- c(0.0122, 0.0290, 0.1303, 0.9072, 2.0272, 13.4080)
+alpha_tfi_2024 <- c(0.1061, 0.3421, 1.5443, 7.3748, 14.7543, 86.0347)
+
+# Beta values
+beta_ofi_2017 <- c(4.54e-05, 7.69e-05, 8.43e-05, 7.18e-05, 6.77e-05, 6.43e-05)
+beta_ofi_2024 <- c(1.11e-04, 6.81e-05, 3.06e-05, 5.95e-06, 9.54e-07, -3.51e-06)
+beta_tfi_2017 <- c(7.68e-05, 1.06e-04, 1.19e-04, 1.00e-04, 9.18e-05, 8.60e-05)
+beta_tfi_2024 <- c(3.50e-04, 3.75e-04, 4.29e-04, 4.61e-04, 4.64e-04, 4.80e-04)
+
+# ===== ALPHA PLOT =====
+data_alpha <- data.frame(
+  k = factor(rep(k, 4), levels = k),
+  value = c(alpha_ofi_2017, alpha_ofi_2024, alpha_tfi_2017, alpha_tfi_2024),
+  type = rep(c("OFI", "OFI", "TFI", "TFI"), each = 6),
+  year = rep(c("2017", "2024", "2017", "2024"), each = 6),
+  group = rep(c("OFI 2017", "OFI 2024", "TFI 2017", "TFI 2024"), each = 6)
+)
+
+# Add small offset to handle negative values in log scale
+offset <- abs(min(data_alpha$value)) + 0.001
+data_alpha$value_adj <- data_alpha$value + offset
+
+ggplot(data_alpha, aes(x = k, y = value, group = group, color = group, linetype = group)) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  geom_hline(yintercept = 0, linetype = "dotted", color = "gray50", size = 0.5) +
+  scale_color_manual(
+    name = NULL,
+    values = c("OFI 2017" = "royalblue", "OFI 2024" = "royalblue", 
+               "TFI 2017" = "springgreen2", "TFI 2024" = "springgreen2")
+  ) +
+  scale_linetype_manual(
+    name = NULL,
+    values = c("OFI 2017" = "solid", "OFI 2024" = "dashed", 
+               "TFI 2017" = "solid", "TFI 2024" = "dashed")
+  ) +
+  labs(
+    x = "Sampling Period (k)",
+    y = expression(hat(alpha))
+  ) +
+  theme_minimal() +
+  theme(
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title.y = element_text(angle = 0, vjust = 0.5),
+    legend.position = c(0.05, 0.95),  
+    legend.justification = c(0, 1),   
+    legend.direction = "vertical",
+    legend.box.background = element_rect(color = "black", fill = "white"),
+    legend.margin = margin(4, 6, 4, 6),
+    legend.key.width = unit(1.2, "cm"),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(hjust = 0.5)
+  )
+
+# ===== BETA PLOT (with log scale) =====
+data_beta <- data.frame(
+  k = factor(rep(k, 4), levels = k),
+  value = c(beta_ofi_2017, beta_ofi_2024, beta_tfi_2017, beta_tfi_2024),
+  type = rep(c("OFI", "OFI", "TFI", "TFI"), each = 6),
+  year = rep(c("2017", "2024", "2017", "2024"), each = 6),
+  group = rep(c("OFI 2017", "OFI 2024", "TFI 2017", "TFI 2024"), each = 6)
+)
+
+# Handle negative beta value for log scale
+data_beta$value_abs <- abs(data_beta$value)
+data_beta$is_negative <- data_beta$value < 0
+
+ggplot(data_beta, aes(x = k, y = value_abs, group = group, color = group, linetype = group)) +
+  geom_line(size = 1) +
+  geom_point(aes(shape = is_negative), size = 2) +
+  scale_y_log10(
+    labels = scales::scientific
+  ) +
+  scale_color_manual(
+    name = NULL,
+    values = c("OFI 2017" = "royalblue", "OFI 2024" = "royalblue", 
+               "TFI 2017" = "springgreen2", "TFI 2024" = "springgreen2")
+  ) +
+  scale_linetype_manual(
+    name = NULL,
+    values = c("OFI 2017" = "solid", "OFI 2024" = "dashed", 
+               "TFI 2017" = "solid", "TFI 2024" = "dashed")
+  ) +
+  scale_shape_manual(
+    name = "Negative value",
+    values = c("FALSE" = 16, "TRUE" = 17),
+    guide = guide_legend(order = 2)
+  ) +
+  labs(
+    x = "Sampling Period (k)",
+    y = expression(hat(beta) ~ "(log scale)")
+  ) +
+  theme_minimal() +
+  theme(
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title.y = element_text(angle = 0, vjust = 0.5),
+    legend.position = c(0.95, 0.95),  
+    legend.justification = c(1, 1),   
+    legend.direction = "vertical",
+    legend.box.background = element_rect(color = "black", fill = "white"),
+    legend.margin = margin(4, 6, 4, 6),
+    legend.key.width = unit(1.2, "cm"),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(hjust = 0.5)
+  )
+```
+# Alpha and betas- Dual Axis
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# Data
+k <- c('1 s', '10 s', '1 min', '5 min', '10 min', '1 h')
+
+# Alpha values
+alpha_ofi_2017 <- c(0.0013, -0.0355, -0.2776, -0.8511, -1.3485, -6.1830)
+alpha_ofi_2024 <- c(-0.3733, -1.7360, -3.8186, 2.5649, 13.9163, 127.9933)
+alpha_tfi_2017 <- c(0.0122, 0.0290, 0.1303, 0.9072, 2.0272, 13.4080)
+alpha_tfi_2024 <- c(0.1061, 0.3421, 1.5443, 7.3748, 14.7543, 86.0347)
+
+# Beta values
+beta_ofi_2017 <- c(4.54e-05, 7.69e-05, 8.43e-05, 7.18e-05, 6.77e-05, 6.43e-05)
+beta_ofi_2024 <- c(1.11e-04, 6.81e-05, 3.06e-05, 5.95e-06, 9.54e-07, -3.51e-06)
+beta_tfi_2017 <- c(7.68e-05, 1.06e-04, 1.19e-04, 1.00e-04, 9.18e-05, 8.60e-05)
+beta_tfi_2024 <- c(3.50e-04, 3.75e-04, 4.29e-04, 4.61e-04, 4.64e-04, 4.80e-04)
+
+# Create data frames with matching columns
+data_alpha <- data.frame(
+  k = factor(rep(k, 4), levels = k),
+  value = c(alpha_ofi_2017, alpha_ofi_2024, alpha_tfi_2017, alpha_tfi_2024),
+  group = rep(c("α OFI 2017", "α OFI 2024", "α TFI 2017", "α TFI 2024"), each = 6),
+  metric = "alpha",
+  value_scaled = NA
+)
+
+data_beta <- data.frame(
+  k = factor(rep(k, 4), levels = k),
+  value = abs(c(beta_ofi_2017, beta_ofi_2024, beta_tfi_2017, beta_tfi_2024)),
+  group = rep(c("β OFI 2017", "β OFI 2024", "β TFI 2017", "β TFI 2024"), each = 6),
+  metric = "beta",
+  value_scaled = NA
+)
+
+# Define scaling factor for secondary axis
+beta_range <- range(data_beta$value)
+alpha_range <- range(data_alpha$value)
+
+# For log scale transformation
+log_beta_min <- log10(min(data_beta$value[data_beta$value > 0]))
+log_beta_max <- log10(max(data_beta$value))
+
+# Scaling factor
+scale_factor <- (alpha_range[2] - alpha_range[1]) / (log_beta_max - log_beta_min)
+shift_factor <- alpha_range[1] - scale_factor * log_beta_min
+
+# Transform beta to alpha scale
+data_beta$value_scaled <- scale_factor * log10(data_beta$value) + shift_factor
+data_alpha$value_scaled <- data_alpha$value
+
+# Plot
+ggplot() +
+  # Alpha lines
+  geom_line(data = data_alpha, 
+            aes(x = k, y = value_scaled, group = group, color = group, linetype = group),
+            size = 0.8) +
+  geom_point(data = data_alpha,
+             aes(x = k, y = value_scaled, group = group, color = group),
+             size = 1.5) +
+  # Beta lines (scaled)
+  geom_line(data = data_beta,
+            aes(x = k, y = value_scaled, group = group, color = group, linetype = group),
+            size = 0.8) +
+  geom_point(data = data_beta,
+             aes(x = k, y = value_scaled, group = group, color = group),
+             size = 1.5) +
+  # Primary y-axis (alpha)
+  scale_y_continuous(
+    name = expression(hat(alpha)),
+    sec.axis = sec_axis(
+      ~ (. - shift_factor) / scale_factor,
+      name = expression(hat(beta) ~ "(log scale)"),
+      labels = function(x) sprintf("%.0e", 10^x)
+    )
+  ) +
+  # Colors
+  scale_color_manual(
+    name = NULL,
+    values = c(
+      "α OFI 2017" = "royalblue", "α OFI 2024" = "royalblue",
+      "α TFI 2017" = "springgreen2", "α TFI 2024" = "springgreen2",
+      "β OFI 2017" = "firebrick", "β OFI 2024" = "firebrick",
+      "β TFI 2017" = "orange", "β TFI 2024" = "orange"
+    )
+  ) +
+  # Line types
+  scale_linetype_manual(
+    name = NULL,
+    values = c(
+      "α OFI 2017" = "solid", "α OFI 2024" = "dashed",
+      "α TFI 2017" = "solid", "α TFI 2024" = "dashed",
+      "β OFI 2017" = "solid", "β OFI 2024" = "dashed",
+      "β TFI 2017" = "solid", "β TFI 2024" = "dashed"
+    )
+  ) +
+  labs(x = "Sampling Period (k)") +
+  theme_minimal() +
+  theme(
+    panel.border = element_rect(color = "black", fill = NA, size = 0.7),
+    axis.title.y.left = element_text(angle = 0, vjust = 0.5, color = "black"),
+    axis.title.y.right = element_text(angle = 0, vjust = 0.5, color = "black"),
+    legend.position = "right",
+    legend.box.background = element_rect(color = "black", fill = "white"),
+    legend.margin = margin(4, 6, 4, 6),
+    legend.key.width = unit(1.2, "cm"),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
 ```
 
 
